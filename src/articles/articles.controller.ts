@@ -13,8 +13,7 @@ import { ArticlesService } from './articles.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
-import { Permissions, CurrentUser } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public, CurrentUser } from '../common/decorators';
 
 @ApiTags('Articles')
 @Controller('articles')
@@ -22,19 +21,18 @@ export class ArticlesController {
   constructor(private readonly articlesService: ArticlesService) {}
 
   @Get()
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   list(@Query() query: ArticleQueryDto) {
     return this.articlesService.list(query);
   }
 
   @Get(':slug')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getBySlug(@Param('slug') slug: string) {
     return this.articlesService.getBySlug(slug);
   }
 
   @Post()
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   create(
     @CurrentUser() userId: string,
     @Body() dto: CreateArticleDto,
@@ -43,7 +41,6 @@ export class ArticlesController {
   }
 
   @Patch(':id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   update(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -53,7 +50,6 @@ export class ArticlesController {
   }
 
   @Delete(':id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   delete(
     @Param('id') id: string,
     @CurrentUser() userId: string,

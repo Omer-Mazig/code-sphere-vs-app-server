@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { AuthService } from '../../auth/auth.service';
-import { RoleType } from '../types';
+import { IS_PUBLIC_KEY } from '../decorators';
 import { BusinessException } from '../errors/business.exception';
 import { ErrorCode } from '../errors/error-codes.enum';
 import { AuthenticatedUser, AuthPayload } from '../../auth/auth.types';
@@ -23,26 +23,27 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.get<RoleType[]>(
-      'permissions',
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
-    );
+      context.getClass(),
+    ]);
 
     const request: Request & { user?: AuthenticatedUser } = context
       .switchToHttp()
       .getRequest();
 
     const token = this.extractToken(request);
-
     const payload = token ? this.authService.verifyAccessToken(token) : null;
 
-    if (requiredPermissions?.includes(RoleType.PUBLIC)) {
+    // Public routes: allow access but still attach user if token is valid
+    if (isPublic) {
       if (payload) {
         this.setUser(request, payload);
       }
       return true;
     }
 
+    // Protected routes: require valid token
     if (!payload) {
       this.logger.log('User not authenticated.');
       throw new BusinessException(
@@ -65,7 +66,6 @@ export class AuthGuard implements CanActivate {
     request.user = {
       id: payload.sub,
       email: payload.email,
-      roles: payload.roles,
     };
   }
 

@@ -1,15 +1,14 @@
 import { Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SeedService } from './seed.service';
-import { Permissions } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public } from '../common/decorators';
 
 @ApiTags('Seed')
 @Controller('dev/seed')
 export class SeedController {
   constructor(private readonly seedService: SeedService) {}
 
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   @Post()
   async seed() {
     if (process.env.NODE_ENV === 'production') {
@@ -22,7 +21,7 @@ export class SeedController {
     return this.seedService.run();
   }
 
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   @Post('clear')
   async clear() {
     if (process.env.NODE_ENV === 'production') {

@@ -11,7 +11,7 @@ import {
   authConfig,
   envValidationSchema,
 } from './config';
-import { AuthGuard, PermissionGuard } from './common/guards';
+import { AuthGuard } from './common/guards';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PostsModule } from './posts/posts.module';
@@ -65,10 +65,6 @@ import { SeedModule } from './seed/seed.module';
     {
       provide: APP_GUARD,
       useClass: AuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: PermissionGuard,
     },
     {
       provide: APP_GUARD,

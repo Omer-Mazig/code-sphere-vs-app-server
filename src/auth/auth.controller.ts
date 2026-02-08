@@ -4,8 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { Permissions } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public } from '../common/decorators';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -13,7 +12,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   @HttpCode(200)
   async login(
     @Body() payload: LoginDto,
@@ -34,7 +33,7 @@ export class AuthController {
   }
 
   @Post('register')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   async register(
     @Body() payload: RegisterDto,
     @Req() req: Request,
@@ -54,7 +53,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   @HttpCode(200)
   async refresh(
     @Req() req: Request,
@@ -77,7 +76,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   @HttpCode(200)
   async logout(
     @Req() req: Request,

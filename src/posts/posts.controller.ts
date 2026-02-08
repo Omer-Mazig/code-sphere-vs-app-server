@@ -13,8 +13,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
-import { Permissions, CurrentUser } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public, CurrentUser } from '../common/decorators';
 
 @ApiTags('Posts')
 @Controller('posts')
@@ -22,19 +21,18 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Get()
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getFeed(@Query() query: PostQueryDto) {
     return this.postsService.getFeed(query);
   }
 
   @Get(':id')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getById(@Param('id') id: string) {
     return this.postsService.getById(id);
   }
 
   @Post()
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   create(
     @CurrentUser() userId: string,
     @Body() dto: CreatePostDto,
@@ -43,7 +41,6 @@ export class PostsController {
   }
 
   @Patch(':id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   update(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -53,7 +50,6 @@ export class PostsController {
   }
 
   @Delete(':id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   delete(
     @Param('id') id: string,
     @CurrentUser() userId: string,

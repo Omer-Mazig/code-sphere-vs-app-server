@@ -12,7 +12,6 @@ import { RegisterDto } from './dto/register.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuthPayload } from './auth.types';
-import { RoleType } from '../common/types';
 
 type TokenBundle = {
   accessToken: string;
@@ -148,7 +147,6 @@ export class AuthService {
       passwordHash,
       username: payload.username,
       displayName: payload.displayName,
-      roles: [RoleType.USER],
       isActive: true,
     });
 
@@ -317,7 +315,6 @@ export class AuthService {
       {
         sub: user.id,
         email: user.email,
-        roles: user.roles,
       } satisfies AuthPayload,
       {
         secret: this.accessTokenSecret,
@@ -381,7 +378,6 @@ export class AuthService {
       username: user.username,
       displayName: user.displayName ?? null,
       avatarUrl: user.avatarUrl ?? null,
-      roles: user.roles,
     };
   }
 

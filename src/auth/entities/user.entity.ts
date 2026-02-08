@@ -5,7 +5,6 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { RoleType } from '../../common/types';
 
 @Entity('users')
 export class User {
@@ -38,9 +37,6 @@ export class User {
 
   @Column({ nullable: true })
   location: string;
-
-  @Column({ type: 'simple-array', default: RoleType.USER })
-  roles: RoleType[];
 
   @Column({ default: true })
   isActive: boolean;

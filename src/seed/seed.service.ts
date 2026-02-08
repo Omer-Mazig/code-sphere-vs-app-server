@@ -10,8 +10,6 @@ import { Follow } from '../users/entities/follow.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Share } from '../interactions/entities/share.entity';
-import { RoleType } from '../common/types';
-
 // ----- Seed types -----
 
 type SeedUser = {
@@ -23,7 +21,6 @@ type SeedUser = {
   location?: string;
   website?: string;
   github?: string;
-  roles: RoleType[];
 };
 
 type SeedPost = {
@@ -133,7 +130,6 @@ export class SeedService {
             location: u.location,
             website: u.website,
             github: u.github,
-            roles: u.roles,
             isActive: true,
           }),
         );
@@ -433,7 +429,6 @@ export class SeedService {
       username: 'cs_admin',
       displayName: 'CodeSphere Admin',
       bio: 'Official CodeSphere admin account.',
-      roles: [RoleType.ADMIN],
     },
     {
       email: 'sarah@example.com',
@@ -444,7 +439,6 @@ export class SeedService {
       location: 'San Francisco, CA',
       website: 'https://sarahchen.dev',
       github: 'sarahchen',
-      roles: [RoleType.USER],
     },
     {
       email: 'alex@example.com',
@@ -454,7 +448,6 @@ export class SeedService {
       bio: 'Backend engineer @ BigCorp. Distributed systems nerd. Rust in my spare time.',
       location: 'Austin, TX',
       github: 'alexrivera',
-      roles: [RoleType.USER],
     },
     {
       email: 'mike@example.com',
@@ -465,7 +458,6 @@ export class SeedService {
       location: 'London, UK',
       website: 'https://mikej.io',
       github: 'mikejohnson',
-      roles: [RoleType.USER],
     },
     {
       email: 'lina@example.com',
@@ -475,7 +467,6 @@ export class SeedService {
       bio: 'Systems programmer. Rust evangelist. Contributing to the Linux kernel on weekends.',
       location: 'Berlin, Germany',
       github: 'linatorres',
-      roles: [RoleType.USER],
     },
     {
       email: 'jordan@example.com',
@@ -485,7 +476,6 @@ export class SeedService {
       bio: 'Data engineer & ML hobbyist. Python is life. Writing about data pipelines and MLOps.',
       location: 'Seoul, South Korea',
       github: 'jordankim',
-      roles: [RoleType.USER],
     },
     {
       email: 'emma@example.com',
@@ -496,7 +486,6 @@ export class SeedService {
       location: 'Tokyo, Japan',
       website: 'https://emmanakamura.dev',
       github: 'emmanakamura',
-      roles: [RoleType.USER],
     },
   ];
 

@@ -12,8 +12,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import { Permissions, CurrentUser } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public, CurrentUser } from '../common/decorators';
 
 @ApiTags('Users')
 @Controller('users')
@@ -21,7 +20,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get(':id')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getProfile(
     @Param('id') id: string,
     @CurrentUser() currentUserId: string,
@@ -30,7 +29,6 @@ export class UsersController {
   }
 
   @Patch('me')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   updateProfile(
     @CurrentUser() userId: string,
     @Body() dto: UpdateProfileDto,
@@ -39,7 +37,6 @@ export class UsersController {
   }
 
   @Post(':id/follow')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   followUser(
     @CurrentUser() followerId: string,
     @Param('id') followingId: string,
@@ -48,7 +45,6 @@ export class UsersController {
   }
 
   @Delete(':id/follow')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   unfollowUser(
     @CurrentUser() followerId: string,
     @Param('id') followingId: string,
@@ -57,7 +53,7 @@ export class UsersController {
   }
 
   @Get(':id/followers')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getFollowers(
     @Param('id') userId: string,
     @Query() query: UserQueryDto,
@@ -66,7 +62,7 @@ export class UsersController {
   }
 
   @Get(':id/following')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getFollowing(
     @Param('id') userId: string,
     @Query() query: UserQueryDto,

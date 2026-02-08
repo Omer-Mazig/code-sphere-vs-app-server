@@ -14,8 +14,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { LikeDto } from './dto/like.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
-import { Permissions, CurrentUser } from '../common/decorators';
-import { RoleType } from '../common/types';
+import { Public, CurrentUser } from '../common/decorators';
 
 @ApiTags('Interactions')
 @Controller('interactions')
@@ -27,7 +26,6 @@ export class InteractionsController {
   // --- Likes ---
 
   @Post('likes')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   like(
     @CurrentUser() userId: string,
     @Body() dto: LikeDto,
@@ -36,7 +34,6 @@ export class InteractionsController {
   }
 
   @Delete('likes')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   unlike(
     @CurrentUser() userId: string,
     @Body() dto: LikeDto,
@@ -49,7 +46,7 @@ export class InteractionsController {
   }
 
   @Get('likes/count')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getLikesCount(@Query() query: LikeDto) {
     return this.interactionsService.getLikesCount(
       query.targetId,
@@ -58,7 +55,6 @@ export class InteractionsController {
   }
 
   @Get('likes/status')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   isLiked(
     @CurrentUser() userId: string,
     @Query() query: LikeDto,
@@ -73,13 +69,12 @@ export class InteractionsController {
   // --- Comments ---
 
   @Get('comments')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getComments(@Query() query: InteractionQueryDto) {
     return this.interactionsService.getComments(query);
   }
 
   @Post('comments')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   addComment(
     @CurrentUser() userId: string,
     @Body() dto: CreateCommentDto,
@@ -88,7 +83,6 @@ export class InteractionsController {
   }
 
   @Patch('comments/:id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   updateComment(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -98,7 +92,6 @@ export class InteractionsController {
   }
 
   @Delete('comments/:id')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   deleteComment(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -109,7 +102,6 @@ export class InteractionsController {
   // --- Shares ---
 
   @Post('shares')
-  @Permissions(RoleType.USER, RoleType.ADMIN)
   share(
     @CurrentUser() userId: string,
     @Body() dto: LikeDto,
@@ -122,7 +114,7 @@ export class InteractionsController {
   }
 
   @Get('shares/count')
-  @Permissions(RoleType.PUBLIC)
+  @Public()
   getSharesCount(@Query() query: LikeDto) {
     return this.interactionsService.getSharesCount(
       query.targetId,
