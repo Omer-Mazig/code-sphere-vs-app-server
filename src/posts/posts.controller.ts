@@ -22,14 +22,20 @@ export class PostsController {
 
   @Get()
   @Public()
-  getFeed(@Query() query: PostQueryDto) {
-    return this.postsService.getFeed(query);
+  getFeed(
+    @Query() query: PostQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.postsService.getFeed(query, currentUserId);
   }
 
   @Get(':id')
   @Public()
-  getById(@Param('id') id: string) {
-    return this.postsService.getById(id);
+  getById(
+    @Param('id') id: string,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.postsService.getById(id, currentUserId);
   }
 
   @Post()

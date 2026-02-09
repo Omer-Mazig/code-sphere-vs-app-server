@@ -1,7 +1,8 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
+import { Like, TargetType } from '../interactions/entities/like.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
@@ -16,6 +17,8 @@ export class PostsService {
   constructor(
     @InjectRepository(Post)
     private readonly postsRepository: Repository<Post>,
+    @InjectRepository(Like)
+    private readonly likesRepository: Repository<Like>,
   ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
@@ -26,7 +29,7 @@ export class PostsService {
 
     await this.postsRepository.save(post);
 
-    return this.getById(post.id);
+    return this.getById(post.id, authorId);
   }
 
   async update(postId: string, userId: string, dto: UpdatePostDto) {
@@ -55,7 +58,7 @@ export class PostsService {
     post.content = dto.content;
     await this.postsRepository.save(post);
 
-    return this.getById(post.id);
+    return this.getById(post.id, userId);
   }
 
   async delete(postId: string, userId: string) {
@@ -86,7 +89,7 @@ export class PostsService {
     return { message: 'Post deleted' };
   }
 
-  async getById(postId: string) {
+  async getById(postId: string, currentUserId?: string) {
     const post = await this.postsRepository.findOne({
       where: { id: postId },
       relations: ['author'],
@@ -101,10 +104,15 @@ export class PostsService {
       );
     }
 
-    return this.formatPost(post);
+    const formatted = this.formatPost(post);
+    const [enriched] = await this.enrichWithLikes(
+      [formatted],
+      currentUserId,
+    );
+    return enriched;
   }
 
-  async getFeed(query: PostQueryDto) {
+  async getFeed(query: PostQueryDto, currentUserId?: string) {
     const { page, authorId } = query;
     const skip = (page - 1) * DEFAULT_PAGE_SIZE;
 
@@ -122,8 +130,14 @@ export class PostsService {
     const [posts, total] = await qb.getManyAndCount();
 
     const items = posts.map((post) => this.formatPost(post));
+    const enrichedItems = await this.enrichWithLikes(items, currentUserId);
 
-    return createPaginatedResponse(items, total, page, DEFAULT_PAGE_SIZE);
+    return createPaginatedResponse(
+      enrichedItems,
+      total,
+      page,
+      DEFAULT_PAGE_SIZE,
+    );
   }
 
   private formatPost(post: Post) {
@@ -141,5 +155,46 @@ export class PostsService {
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
     };
+  }
+
+  private async enrichWithLikes<T extends { id: string }>(
+    items: T[],
+    currentUserId?: string,
+  ): Promise<(T & { likesCount: number; isLiked: boolean })[]> {
+    if (items.length === 0) return [];
+
+    const ids = items.map((i) => i.id);
+
+    const countsRaw: { targetId: string; count: string }[] =
+      await this.likesRepository
+        .createQueryBuilder('like')
+        .select('like.targetId', 'targetId')
+        .addSelect('COUNT(*)', 'count')
+        .where('like.targetId IN (:...ids)', { ids })
+        .andWhere('like.targetType = :type', { type: TargetType.POST })
+        .groupBy('like.targetId')
+        .getRawMany();
+
+    const countMap = new Map(
+      countsRaw.map((c) => [c.targetId, Number(c.count)]),
+    );
+
+    let likedSet = new Set<string>();
+    if (currentUserId) {
+      const userLikes = await this.likesRepository.find({
+        where: {
+          userId: currentUserId,
+          targetId: In(ids),
+          targetType: TargetType.POST,
+        },
+      });
+      likedSet = new Set(userLikes.map((l) => l.targetId));
+    }
+
+    return items.map((item) => ({
+      ...item,
+      likesCount: countMap.get(item.id) ?? 0,
+      isLiked: likedSet.has(item.id),
+    }));
   }
 }

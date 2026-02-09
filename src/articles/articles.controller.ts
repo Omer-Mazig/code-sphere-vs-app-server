@@ -22,14 +22,20 @@ export class ArticlesController {
 
   @Get()
   @Public()
-  list(@Query() query: ArticleQueryDto) {
-    return this.articlesService.list(query);
+  list(
+    @Query() query: ArticleQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.articlesService.list(query, currentUserId);
   }
 
   @Get(':slug')
   @Public()
-  getBySlug(@Param('slug') slug: string) {
-    return this.articlesService.getBySlug(slug);
+  getBySlug(
+    @Param('slug') slug: string,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.articlesService.getBySlug(slug, currentUserId);
   }
 
   @Post()

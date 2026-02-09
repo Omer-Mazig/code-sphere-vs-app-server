@@ -1,7 +1,8 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
+import { Like, TargetType } from '../interactions/entities/like.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
@@ -14,6 +15,8 @@ export class ArticlesService {
   constructor(
     @InjectRepository(Article)
     private readonly articlesRepository: Repository<Article>,
+    @InjectRepository(Like)
+    private readonly likesRepository: Repository<Like>,
   ) {}
 
   async create(authorId: string, dto: CreateArticleDto) {
@@ -43,7 +46,7 @@ export class ArticlesService {
 
     await this.articlesRepository.save(article);
 
-    return this.getById(article.id);
+    return this.getById(article.id, authorId);
   }
 
   async update(articleId: string, userId: string, dto: UpdateArticleDto) {
@@ -90,7 +93,7 @@ export class ArticlesService {
     Object.assign(article, dto);
     await this.articlesRepository.save(article);
 
-    return this.getById(article.id);
+    return this.getById(article.id, userId);
   }
 
   async delete(articleId: string, userId: string) {
@@ -121,7 +124,7 @@ export class ArticlesService {
     return { message: 'Article deleted' };
   }
 
-  async getById(articleId: string) {
+  async getById(articleId: string, currentUserId?: string) {
     const article = await this.articlesRepository.findOne({
       where: { id: articleId },
       relations: ['author'],
@@ -136,10 +139,15 @@ export class ArticlesService {
       );
     }
 
-    return this.formatArticle(article);
+    const formatted = this.formatArticle(article);
+    const [enriched] = await this.enrichWithLikes(
+      [formatted],
+      currentUserId,
+    );
+    return enriched;
   }
 
-  async getBySlug(slug: string) {
+  async getBySlug(slug: string, currentUserId?: string) {
     const article = await this.articlesRepository.findOne({
       where: { slug },
       relations: ['author'],
@@ -154,10 +162,15 @@ export class ArticlesService {
       );
     }
 
-    return this.formatArticle(article);
+    const formatted = this.formatArticle(article);
+    const [enriched] = await this.enrichWithLikes(
+      [formatted],
+      currentUserId,
+    );
+    return enriched;
   }
 
-  async list(query: ArticleQueryDto) {
+  async list(query: ArticleQueryDto, currentUserId?: string) {
     const { page, limit, authorId, search, isPublished } = query;
     const skip = (page - 1) * limit;
 
@@ -185,8 +198,9 @@ export class ArticlesService {
     const [articles, total] = await qb.getManyAndCount();
 
     const items = articles.map((article) => this.formatArticle(article));
+    const enrichedItems = await this.enrichWithLikes(items, currentUserId);
 
-    return createPaginatedResponse(items, total, page, limit);
+    return createPaginatedResponse(enrichedItems, total, page, limit);
   }
 
   private formatArticle(article: Article) {
@@ -208,6 +222,47 @@ export class ArticlesService {
       createdAt: article.createdAt,
       updatedAt: article.updatedAt,
     };
+  }
+
+  private async enrichWithLikes<T extends { id: string }>(
+    items: T[],
+    currentUserId?: string,
+  ): Promise<(T & { likesCount: number; isLiked: boolean })[]> {
+    if (items.length === 0) return [];
+
+    const ids = items.map((i) => i.id);
+
+    const countsRaw: { targetId: string; count: string }[] =
+      await this.likesRepository
+        .createQueryBuilder('like')
+        .select('like.targetId', 'targetId')
+        .addSelect('COUNT(*)', 'count')
+        .where('like.targetId IN (:...ids)', { ids })
+        .andWhere('like.targetType = :type', { type: TargetType.ARTICLE })
+        .groupBy('like.targetId')
+        .getRawMany();
+
+    const countMap = new Map(
+      countsRaw.map((c) => [c.targetId, Number(c.count)]),
+    );
+
+    let likedSet = new Set<string>();
+    if (currentUserId) {
+      const userLikes = await this.likesRepository.find({
+        where: {
+          userId: currentUserId,
+          targetId: In(ids),
+          targetType: TargetType.ARTICLE,
+        },
+      });
+      likedSet = new Set(userLikes.map((l) => l.targetId));
+    }
+
+    return items.map((item) => ({
+      ...item,
+      likesCount: countMap.get(item.id) ?? 0,
+      isLiked: likedSet.has(item.id),
+    }));
   }
 
   private generateSlug(title: string): string {
