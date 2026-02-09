@@ -9,6 +9,8 @@ import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { createPaginatedResponse } from '../common/dto';
 
+const DEFAULT_PAGE_SIZE = 3;
+
 @Injectable()
 export class PostsService {
   constructor(
@@ -103,15 +105,15 @@ export class PostsService {
   }
 
   async getFeed(query: PostQueryDto) {
-    const { page, limit, authorId } = query;
-    const skip = (page - 1) * limit;
+    const { page, authorId } = query;
+    const skip = (page - 1) * DEFAULT_PAGE_SIZE;
 
     const qb = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .orderBy('post.createdAt', 'DESC')
       .skip(skip)
-      .take(limit);
+      .take(DEFAULT_PAGE_SIZE);
 
     if (authorId) {
       qb.where('post.authorId = :authorId', { authorId });
@@ -121,7 +123,7 @@ export class PostsService {
 
     const items = posts.map((post) => this.formatPost(post));
 
-    return createPaginatedResponse(items, total, page, limit);
+    return createPaginatedResponse(items, total, page, DEFAULT_PAGE_SIZE);
   }
 
   private formatPost(post: Post) {
