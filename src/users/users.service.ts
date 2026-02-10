@@ -9,6 +9,9 @@ import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { createPaginatedResponse } from '../common/dto';
 
+type FollowersCount = number;
+type FollowingCount = number;
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -18,15 +21,11 @@ export class UsersService {
     private readonly followsRepository: Repository<Follow>,
   ) {}
 
-  // ── Profile ────────────────────────────────────────────────────────
-
   async getMyProfile(currentUserId: string) {
     const user = await this.findUserOrFail(currentUserId);
 
-    const [followersCount, followingCount] = await Promise.all([
-      this.followsRepository.count({ where: { followingId: currentUserId } }),
-      this.followsRepository.count({ where: { followerId: currentUserId } }),
-    ]);
+    const [followersCount, followingCount] =
+      await this.getFollowersAndFollowingCounts(currentUserId);
 
     return {
       ...this.formatUser(user),
@@ -40,10 +39,8 @@ export class UsersService {
   async getProfile(targetUserId: string, currentUserId?: string) {
     const user = await this.findUserOrFail(targetUserId);
 
-    const [followersCount, followingCount] = await Promise.all([
-      this.followsRepository.count({ where: { followingId: targetUserId } }),
-      this.followsRepository.count({ where: { followerId: targetUserId } }),
-    ]);
+    const [followersCount, followingCount] =
+      await this.getFollowersAndFollowingCounts(targetUserId);
 
     let isFollowing = false;
     if (currentUserId && currentUserId !== targetUserId) {
@@ -70,8 +67,6 @@ export class UsersService {
 
     return this.getMyProfile(currentUserId);
   }
-
-  // ── Follow ─────────────────────────────────────────────────────────
 
   async followUser(currentUserId: string, targetUserId: string) {
     if (currentUserId === targetUserId) {
@@ -127,65 +122,13 @@ export class UsersService {
     return { message: 'Unfollowed successfully' };
   }
 
-  // ── Followers / Following ──────────────────────────────────────────
-
   async getFollowers(targetUserId: string, query: UserQueryDto) {
-    const { page, limit } = query;
-    const skip = (page - 1) * limit;
-
-    const [follows, total] = await this.followsRepository
-      .createQueryBuilder('follow')
-      .leftJoinAndSelect('follow.follower', 'follower')
-      .where('follow.followingId = :targetUserId', { targetUserId })
-      .orderBy(
-        `LOWER(COALESCE("follower"."displayName", "follower"."username"))`,
-        'ASC',
-      )
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    const items = follows.map((f) => ({
-      id: f.follower.id,
-      username: f.follower.username,
-      displayName: f.follower.displayName,
-      avatarUrl: f.follower.avatarUrl,
-      bio: f.follower.bio,
-      followedAt: f.createdAt,
-    }));
-
-    return createPaginatedResponse(items, total, page, limit);
+    return this.getPaginatedFollowUsers('follower', targetUserId, query);
   }
 
   async getFollowing(targetUserId: string, query: UserQueryDto) {
-    const { page, limit } = query;
-    const skip = (page - 1) * limit;
-
-    const [follows, total] = await this.followsRepository
-      .createQueryBuilder('follow')
-      .leftJoinAndSelect('follow.following', 'following')
-      .where('follow.followerId = :targetUserId', { targetUserId })
-      .orderBy(
-        `LOWER(COALESCE("following"."displayName", "following"."username"))`,
-        'ASC',
-      )
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    const items = follows.map((f) => ({
-      id: f.following.id,
-      username: f.following.username,
-      displayName: f.following.displayName,
-      avatarUrl: f.following.avatarUrl,
-      bio: f.following.bio,
-      followedAt: f.createdAt,
-    }));
-
-    return createPaginatedResponse(items, total, page, limit);
+    return this.getPaginatedFollowUsers('following', targetUserId, query);
   }
-
-  // ── Helpers ────────────────────────────────────────────────────────
 
   private async findUserOrFail(userId: string): Promise<User> {
     const user = await this.usersRepository.findOne({
@@ -204,6 +147,48 @@ export class UsersService {
     return user;
   }
 
+  private async getPaginatedFollowUsers(
+    relation: 'follower' | 'following',
+    targetUserId: string,
+    query: UserQueryDto,
+  ) {
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    // "follower" → people who follow targetUserId → filter by followingId
+    // "following" → people targetUserId follows → filter by followerId
+    const whereColumn = relation === 'follower' ? 'followingId' : 'followerId';
+
+    const [follows, total] = await this.followsRepository
+      .createQueryBuilder('follow')
+      .leftJoinAndSelect(`follow.${relation}`, relation)
+      .where(`follow.${whereColumn} = :targetUserId`, { targetUserId })
+      .orderBy(
+        `LOWER(COALESCE("${relation}"."displayName", "${relation}"."username"))`,
+        'ASC',
+      )
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const items = follows.map((f) =>
+      this.formatFollowUser(f[relation], f.createdAt),
+    );
+
+    return createPaginatedResponse(items, total, page, limit);
+  }
+
+  private formatFollowUser(user: User, followedAt: Date) {
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      followedAt,
+    };
+  }
+
   private formatUser(user: User) {
     return {
       id: user.id,
@@ -216,5 +201,17 @@ export class UsersService {
       github: user.github,
       location: user.location,
     };
+  }
+
+  private getFollowersAndFollowingCounts(
+    userId: string,
+  ): Promise<[FollowersCount, FollowingCount]> {
+    // DEAR DEVELOPER, Dont be confused by the order of the counts.
+    // To get followers we need to filter by followingId, and to get following we need to filter by followerId.
+    // So it might look backward, but it's correct.
+    return Promise.all([
+      this.followsRepository.count({ where: { followingId: userId } }), // followers
+      this.followsRepository.count({ where: { followerId: userId } }), // following
+    ]);
   }
 }
