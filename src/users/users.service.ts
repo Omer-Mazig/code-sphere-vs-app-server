@@ -18,46 +18,43 @@ export class UsersService {
     private readonly followsRepository: Repository<Follow>,
   ) {}
 
-  async getProfile(userId: string, currentUserId?: string) {
-    const user = await this.usersRepository.findOne({
-      where: { id: userId },
-    });
+  // ── Profile ────────────────────────────────────────────────────────
 
-    if (!user) {
-      throw new BusinessException(
-        ErrorCode.USER_NOT_FOUND,
-        `User with id "${userId}" not found`,
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+  async getMyProfile(currentUserId: string) {
+    const user = await this.findUserOrFail(currentUserId);
 
-    const followersCount = await this.followsRepository.count({
-      where: { followingId: userId },
-    });
+    const [followersCount, followingCount] = await Promise.all([
+      this.followsRepository.count({ where: { followingId: currentUserId } }),
+      this.followsRepository.count({ where: { followerId: currentUserId } }),
+    ]);
 
-    const followingCount = await this.followsRepository.count({
-      where: { followerId: userId },
-    });
+    return {
+      ...this.formatUser(user),
+      followersCount,
+      followingCount,
+      isFollowing: false,
+      createdAt: user.createdAt,
+    };
+  }
+
+  async getProfile(targetUserId: string, currentUserId?: string) {
+    const user = await this.findUserOrFail(targetUserId);
+
+    const [followersCount, followingCount] = await Promise.all([
+      this.followsRepository.count({ where: { followingId: targetUserId } }),
+      this.followsRepository.count({ where: { followerId: targetUserId } }),
+    ]);
 
     let isFollowing = false;
-    if (currentUserId && currentUserId !== userId) {
+    if (currentUserId && currentUserId !== targetUserId) {
       const follow = await this.followsRepository.findOne({
-        where: { followerId: currentUserId, followingId: userId },
+        where: { followerId: currentUserId, followingId: targetUserId },
       });
       isFollowing = !!follow;
     }
 
     return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      bio: user.bio,
-      avatarUrl: user.avatarUrl,
-      website: user.website,
-      github: user.github,
-      location: user.location,
+      ...this.formatUser(user),
       followersCount,
       followingCount,
       isFollowing,
@@ -65,65 +62,45 @@ export class UsersService {
     };
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const user = await this.usersRepository.findOne({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new BusinessException(
-        ErrorCode.USER_NOT_FOUND,
-        `User with id "${userId}" not found`,
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+  async updateMyProfile(currentUserId: string, dto: UpdateProfileDto) {
+    const user = await this.findUserOrFail(currentUserId);
 
     Object.assign(user, dto);
     await this.usersRepository.save(user);
 
-    return this.getProfile(userId);
+    return this.getMyProfile(currentUserId);
   }
 
-  async followUser(followerId: string, followingId: string) {
-    if (followerId === followingId) {
+  // ── Follow ─────────────────────────────────────────────────────────
+
+  async followUser(currentUserId: string, targetUserId: string) {
+    if (currentUserId === targetUserId) {
       throw new BusinessException(
         ErrorCode.CANNOT_FOLLOW_SELF,
-        `User "${followerId}" tried to follow themselves`,
+        `User "${currentUserId}" tried to follow themselves`,
         'You cannot follow yourself',
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    const targetUser = await this.usersRepository.findOne({
-      where: { id: followingId },
-    });
-
-    if (!targetUser) {
-      throw new BusinessException(
-        ErrorCode.USER_NOT_FOUND,
-        `User with id "${followingId}" not found`,
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    await this.findUserOrFail(targetUserId);
 
     const existingFollow = await this.followsRepository.findOne({
-      where: { followerId, followingId },
+      where: { followerId: currentUserId, followingId: targetUserId },
     });
 
     if (existingFollow) {
       throw new BusinessException(
         ErrorCode.USER_ALREADY_FOLLOWED,
-        `User "${followerId}" already follows "${followingId}"`,
+        `User "${currentUserId}" already follows "${targetUserId}"`,
         'You are already following this user',
         HttpStatus.CONFLICT,
       );
     }
 
     const follow = this.followsRepository.create({
-      followerId,
-      followingId,
+      followerId: currentUserId,
+      followingId: targetUserId,
     });
 
     await this.followsRepository.save(follow);
@@ -131,15 +108,15 @@ export class UsersService {
     return { message: 'Followed successfully' };
   }
 
-  async unfollowUser(followerId: string, followingId: string) {
+  async unfollowUser(currentUserId: string, targetUserId: string) {
     const follow = await this.followsRepository.findOne({
-      where: { followerId, followingId },
+      where: { followerId: currentUserId, followingId: targetUserId },
     });
 
     if (!follow) {
       throw new BusinessException(
         ErrorCode.USER_NOT_FOLLOWED,
-        `User "${followerId}" does not follow "${followingId}"`,
+        `User "${currentUserId}" does not follow "${targetUserId}"`,
         'You are not following this user',
         HttpStatus.BAD_REQUEST,
       );
@@ -150,17 +127,23 @@ export class UsersService {
     return { message: 'Unfollowed successfully' };
   }
 
-  async getFollowers(userId: string, query: UserQueryDto) {
+  // ── Followers / Following ──────────────────────────────────────────
+
+  async getFollowers(targetUserId: string, query: UserQueryDto) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
-    const [follows, total] = await this.followsRepository.findAndCount({
-      where: { followingId: userId },
-      relations: ['follower'],
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    const [follows, total] = await this.followsRepository
+      .createQueryBuilder('follow')
+      .leftJoinAndSelect('follow.follower', 'follower')
+      .where('follow.followingId = :targetUserId', { targetUserId })
+      .orderBy(
+        `LOWER(COALESCE("follower"."displayName", "follower"."username"))`,
+        'ASC',
+      )
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     const items = follows.map((f) => ({
       id: f.follower.id,
@@ -174,17 +157,21 @@ export class UsersService {
     return createPaginatedResponse(items, total, page, limit);
   }
 
-  async getFollowing(userId: string, query: UserQueryDto) {
+  async getFollowing(targetUserId: string, query: UserQueryDto) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
-    const [follows, total] = await this.followsRepository.findAndCount({
-      where: { followerId: userId },
-      relations: ['following'],
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    const [follows, total] = await this.followsRepository
+      .createQueryBuilder('follow')
+      .leftJoinAndSelect('follow.following', 'following')
+      .where('follow.followerId = :targetUserId', { targetUserId })
+      .orderBy(
+        `LOWER(COALESCE("following"."displayName", "following"."username"))`,
+        'ASC',
+      )
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     const items = follows.map((f) => ({
       id: f.following.id,
@@ -196,5 +183,38 @@ export class UsersService {
     }));
 
     return createPaginatedResponse(items, total, page, limit);
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────
+
+  private async findUserOrFail(userId: string): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BusinessException(
+        ErrorCode.USER_NOT_FOUND,
+        `User with id "${userId}" not found`,
+        'User not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return user;
+  }
+
+  private formatUser(user: User) {
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      bio: user.bio,
+      avatarUrl: user.avatarUrl,
+      website: user.website,
+      github: user.github,
+      location: user.location,
+    };
   }
 }

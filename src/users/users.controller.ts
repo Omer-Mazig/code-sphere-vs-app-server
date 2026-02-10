@@ -19,54 +19,65 @@ import { Public, CurrentUser } from '../common/decorators';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // ── Profile ────────────────────────────────────────────────────────
+
+  @Get('me')
+  getMyProfile(@CurrentUser() currentUserId: string) {
+    return this.usersService.getMyProfile(currentUserId);
+  }
+
   @Get(':id')
   @Public()
   getProfile(
-    @Param('id') id: string,
+    @Param('id') targetUserId: string,
     @CurrentUser() currentUserId: string,
   ) {
-    return this.usersService.getProfile(id, currentUserId);
+    return this.usersService.getProfile(targetUserId, currentUserId);
   }
 
   @Patch('me')
-  updateProfile(
-    @CurrentUser() userId: string,
+  updateMyProfile(
+    @CurrentUser() currentUserId: string,
     @Body() dto: UpdateProfileDto,
   ) {
-    return this.usersService.updateProfile(userId, dto);
+    return this.usersService.updateMyProfile(currentUserId, dto);
   }
+
+  // ── Follow ─────────────────────────────────────────────────────────
 
   @Post(':id/follow')
   followUser(
-    @CurrentUser() followerId: string,
-    @Param('id') followingId: string,
+    @CurrentUser() currentUserId: string,
+    @Param('id') targetUserId: string,
   ) {
-    return this.usersService.followUser(followerId, followingId);
+    return this.usersService.followUser(currentUserId, targetUserId);
   }
 
   @Delete(':id/follow')
   unfollowUser(
-    @CurrentUser() followerId: string,
-    @Param('id') followingId: string,
+    @CurrentUser() currentUserId: string,
+    @Param('id') targetUserId: string,
   ) {
-    return this.usersService.unfollowUser(followerId, followingId);
+    return this.usersService.unfollowUser(currentUserId, targetUserId);
   }
+
+  // ── Followers / Following ──────────────────────────────────────────
 
   @Get(':id/followers')
   @Public()
   getFollowers(
-    @Param('id') userId: string,
+    @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
   ) {
-    return this.usersService.getFollowers(userId, query);
+    return this.usersService.getFollowers(targetUserId, query);
   }
 
   @Get(':id/following')
   @Public()
   getFollowing(
-    @Param('id') userId: string,
+    @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
   ) {
-    return this.usersService.getFollowing(userId, query);
+    return this.usersService.getFollowing(targetUserId, query);
   }
 }
