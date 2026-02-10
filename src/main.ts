@@ -6,6 +6,7 @@ import { GlobalExceptionFilter } from './common/filters';
 import { SwaggerModule } from '@nestjs/swagger';
 import { getSwaggerConfig } from './config/swagger.config';
 import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -17,6 +18,14 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.use(cookieParser());
+  app.use(
+    helmet({
+      // Disable CSP in development to avoid breaking the frontend during local dev.
+      // Configure a proper Content-Security-Policy for production when domains are finalized.
+      contentSecurityPolicy:
+        process.env.NODE_ENV === 'production' ? undefined : false,
+    }),
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
