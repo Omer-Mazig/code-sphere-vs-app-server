@@ -275,9 +275,9 @@ export class AuthService {
   verifyAccessToken(token: string) {
     if (!this.accessTokenSecret) {
       throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
+        ErrorCode.INTERNAL_SERVER_ERROR,
         'Access token secret is not set',
-        'Access token secret is not set',
+        'Something went wrong',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -296,17 +296,17 @@ export class AuthService {
   ): Promise<TokenBundle> {
     if (!this.accessTokenSecret) {
       throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
+        ErrorCode.INTERNAL_SERVER_ERROR,
         'Access token secret is not set',
-        'Access token secret is not set',
+        'Something went wrong',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
     if (!this.refreshTokenSecret) {
       throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
+        ErrorCode.INTERNAL_SERVER_ERROR,
         'Refresh token secret is not set',
-        'Refresh token secret is not set',
+        'Something went wrong',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -384,9 +384,9 @@ export class AuthService {
   private verifyRefreshToken(token: string) {
     if (!this.refreshTokenSecret) {
       throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
+        ErrorCode.INTERNAL_SERVER_ERROR,
         'Refresh token secret is not set',
-        'Refresh token secret is not set',
+        'Something went wrong',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
