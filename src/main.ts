@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { GlobalExceptionFilter } from './common/filters';
 import { SwaggerModule } from '@nestjs/swagger';
-import { buildSwaggerDocument } from './config/swagger.config';
+import { buildSwaggerConfig } from './config/swagger.config';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
@@ -35,9 +35,9 @@ async function bootstrap() {
     }),
   );
 
-  const config = buildSwaggerDocument();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  const swaggerConfig = buildSwaggerConfig();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, swaggerDocument);
 
   const corsOrigins = configService.get<string[]>('app.corsOrigins', []);
   app.enableCors({

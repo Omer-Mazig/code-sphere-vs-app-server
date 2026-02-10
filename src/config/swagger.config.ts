@@ -1,6 +1,6 @@
 import { DocumentBuilder } from '@nestjs/swagger';
 
-export function buildSwaggerDocument() {
+export function buildSwaggerConfig() {
   const config = new DocumentBuilder()
     .setTitle('CodeSphere API')
     .setDescription('CodeSphere - A social network for developers')
