@@ -1,7 +1,6 @@
-import { INestApplication } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder } from '@nestjs/swagger';
 
-export function getSwaggerConfig(app: INestApplication) {
+export function buildSwaggerDocument() {
   const config = new DocumentBuilder()
     .setTitle('CodeSphere API')
     .setDescription('CodeSphere - A social network for developers')
@@ -9,5 +8,5 @@ export function getSwaggerConfig(app: INestApplication) {
     .addBearerAuth()
     .build();
 
-  return SwaggerModule.createDocument(app, config);
+  return config;
 }
