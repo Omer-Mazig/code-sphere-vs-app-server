@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeedService } from './seed.service';
 import { SeedController } from './seed.controller';
-import { User } from '../auth/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';

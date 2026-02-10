@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 import { TargetType } from './like.entity';
 
 @Entity('comments')
