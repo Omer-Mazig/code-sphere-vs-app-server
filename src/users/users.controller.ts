@@ -9,7 +9,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { UsersService } from './users.service';
+import { ProfilesService } from './profiles.service';
+import { FollowsService } from './follows.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { Public, CurrentUser } from '../common/decorators';
@@ -17,13 +18,16 @@ import { Public, CurrentUser } from '../common/decorators';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly profilesService: ProfilesService,
+    private readonly followsService: FollowsService,
+  ) {}
 
   // ── Profile ────────────────────────────────────────────────────────
 
   @Get('me')
   getMyProfile(@CurrentUser() currentUserId: string) {
-    return this.usersService.getMyProfile(currentUserId);
+    return this.profilesService.getMyProfile(currentUserId);
   }
 
   @Get(':id')
@@ -32,7 +36,7 @@ export class UsersController {
     @Param('id') targetUserId: string,
     @CurrentUser() currentUserId: string,
   ) {
-    return this.usersService.getProfile(targetUserId, currentUserId);
+    return this.profilesService.getProfile(targetUserId, currentUserId);
   }
 
   @Patch('me')
@@ -40,7 +44,7 @@ export class UsersController {
     @CurrentUser() currentUserId: string,
     @Body() dto: UpdateProfileDto,
   ) {
-    return this.usersService.updateMyProfile(currentUserId, dto);
+    return this.profilesService.updateMyProfile(currentUserId, dto);
   }
 
   // ── Follow ─────────────────────────────────────────────────────────
@@ -50,7 +54,7 @@ export class UsersController {
     @CurrentUser() currentUserId: string,
     @Param('id') targetUserId: string,
   ) {
-    return this.usersService.followUser(currentUserId, targetUserId);
+    return this.followsService.followUser(currentUserId, targetUserId);
   }
 
   @Delete(':id/follow')
@@ -58,7 +62,7 @@ export class UsersController {
     @CurrentUser() currentUserId: string,
     @Param('id') targetUserId: string,
   ) {
-    return this.usersService.unfollowUser(currentUserId, targetUserId);
+    return this.followsService.unfollowUser(currentUserId, targetUserId);
   }
 
   // ── Followers / Following ──────────────────────────────────────────
@@ -69,7 +73,7 @@ export class UsersController {
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
   ) {
-    return this.usersService.getFollowers(targetUserId, query);
+    return this.followsService.getFollowers(targetUserId, query);
   }
 
   @Get(':id/following')
@@ -78,6 +82,6 @@ export class UsersController {
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
   ) {
-    return this.usersService.getFollowing(targetUserId, query);
+    return this.followsService.getFollowing(targetUserId, query);
   }
 }
