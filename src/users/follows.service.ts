@@ -7,7 +7,6 @@ import { UserQueryDto } from './dto/user-query.dto';
 import { UsersService } from './users.service';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { createPaginatedResponse } from '../common/dto';
 
 @Injectable()
 export class FollowsService {
@@ -140,7 +139,7 @@ export class FollowsService {
       this.formatFollowUser(f[relation], f.createdAt),
     );
 
-    return createPaginatedResponse(items, total, page, limit);
+    return { items, total, page, limit };
   }
 
   private formatFollowUser(user: User, followedAt: Date) {

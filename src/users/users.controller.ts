@@ -13,7 +13,7 @@ import { ProfilesService } from './profiles.service';
 import { FollowsService } from './follows.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import { Public, CurrentUser } from '../common/decorators';
+import { Public, CurrentUser, Paginated } from '../common/decorators';
 
 @ApiTags('Users')
 @Controller('users')
@@ -69,6 +69,7 @@ export class UsersController {
 
   @Get(':id/followers')
   @Public()
+  @Paginated()
   getFollowers(
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
@@ -78,6 +79,7 @@ export class UsersController {
 
   @Get(':id/following')
   @Public()
+  @Paginated()
   getFollowing(
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,

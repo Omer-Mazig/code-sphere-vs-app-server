@@ -10,6 +10,14 @@ export interface PaginatedResponse<T> {
   };
 }
 
+/** Raw payload returned by handlers; interceptor wraps it into PaginatedResponse. */
+export interface PaginatedPayload<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export function createPaginatedResponse<T>(
   items: T[],
   total: number,

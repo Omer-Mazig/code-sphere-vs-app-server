@@ -13,7 +13,7 @@ import { ArticlesService } from './articles.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
-import { Public, CurrentUser } from '../common/decorators';
+import { Public, CurrentUser, Paginated } from '../common/decorators';
 
 @ApiTags('Articles')
 @Controller('articles')
@@ -22,6 +22,7 @@ export class ArticlesController {
 
   @Get()
   @Public()
+  @Paginated()
   list(
     @Query() query: ArticleQueryDto,
     @CurrentUser() currentUserId: string,

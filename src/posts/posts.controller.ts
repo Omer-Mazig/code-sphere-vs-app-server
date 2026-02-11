@@ -13,7 +13,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
-import { Public, CurrentUser } from '../common/decorators';
+import { Public, CurrentUser, Paginated } from '../common/decorators';
 
 @ApiTags('Posts')
 @Controller('posts')
@@ -22,6 +22,7 @@ export class PostsController {
 
   @Get()
   @Public()
+  @Paginated()
   getFeed(
     @Query() query: PostQueryDto,
     @CurrentUser() currentUserId: string,

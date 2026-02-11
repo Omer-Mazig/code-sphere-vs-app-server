@@ -8,7 +8,6 @@ import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { createPaginatedResponse } from '../common/dto';
 
 @Injectable()
 export class ArticlesService {
@@ -200,7 +199,7 @@ export class ArticlesService {
     const items = articles.map((article) => this.formatArticle(article));
     const enrichedItems = await this.enrichWithLikes(items, currentUserId);
 
-    return createPaginatedResponse(enrichedItems, total, page, limit);
+    return { items: enrichedItems, total, page, limit };
   }
 
   private formatArticle(article: Article) {

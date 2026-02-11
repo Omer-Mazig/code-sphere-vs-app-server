@@ -8,7 +8,6 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { createPaginatedResponse } from '../common/dto';
 
 const DEFAULT_PAGE_SIZE = 3;
 
@@ -132,12 +131,12 @@ export class PostsService {
     const items = posts.map((post) => this.formatPost(post));
     const enrichedItems = await this.enrichWithLikes(items, currentUserId);
 
-    return createPaginatedResponse(
-      enrichedItems,
+    return {
+      items: enrichedItems,
       total,
       page,
-      DEFAULT_PAGE_SIZE,
-    );
+      limit: DEFAULT_PAGE_SIZE,
+    };
   }
 
   private formatPost(post: Post) {

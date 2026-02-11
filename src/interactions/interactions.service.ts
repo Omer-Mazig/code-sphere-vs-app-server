@@ -9,7 +9,6 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { createPaginatedResponse } from '../common/dto';
 
 @Injectable()
 export class InteractionsService {
@@ -175,7 +174,7 @@ export class InteractionsService {
 
     const items = comments.map((c) => this.formatComment(c));
 
-    return createPaginatedResponse(items, total, page, limit);
+    return { items, total, page, limit };
   }
 
   async getCommentById(commentId: string) {

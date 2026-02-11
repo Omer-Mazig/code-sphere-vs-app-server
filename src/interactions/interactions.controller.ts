@@ -14,7 +14,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { LikeDto } from './dto/like.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
-import { Public, CurrentUser } from '../common/decorators';
+import { Public, CurrentUser, Paginated } from '../common/decorators';
 
 @ApiTags('Interactions')
 @Controller('interactions')
@@ -70,6 +70,7 @@ export class InteractionsController {
 
   @Get('comments')
   @Public()
+  @Paginated()
   getComments(@Query() query: InteractionQueryDto) {
     return this.interactionsService.getComments(query);
   }
