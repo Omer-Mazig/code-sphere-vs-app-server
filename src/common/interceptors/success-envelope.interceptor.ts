@@ -7,6 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { randomUUID } from 'crypto';
+import type { RequestWithContext } from '../middleware/request-context.middleware';
 
 export interface SuccessEnvelope {
   payload: unknown;
@@ -25,15 +26,15 @@ export class SuccessEnvelopeInterceptor implements NestInterceptor {
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<SuccessEnvelope> {
-    const request = context.switchToHttp().getRequest<Request & { _startTime?: number }>();
-    request._startTime = Date.now();
+    const request = context.switchToHttp().getRequest<RequestWithContext>();
 
     return next.handle().pipe(
       map((data: unknown) => {
         const now = Date.now();
-        const requestId = randomUUID();
+        const requestId = request.requestId ?? randomUUID();
         const timestamp = new Date(now).toISOString();
-        const processingTimeMs = request._startTime != null ? now - request._startTime : undefined;
+        const processingTimeMs =
+          request._startTime != null ? now - request._startTime : undefined;
 
         const envelope: SuccessEnvelope = {
           payload: data,

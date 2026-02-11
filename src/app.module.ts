@@ -3,7 +3,10 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { DevelopmentWaitMiddleware } from './common';
+import {
+  DevelopmentWaitMiddleware,
+  RequestContextMiddleware,
+} from './common';
 import {
   databaseConfig,
   appConfig,
@@ -14,6 +17,7 @@ import {
 import { AuthGuard } from './common/guards';
 import {
   PaginatedResponseInterceptor,
+  RequestLoggingInterceptor,
   SuccessEnvelopeInterceptor,
 } from './common/interceptors';
 import { AuthModule } from './auth/auth.module';
@@ -76,6 +80,10 @@ import { SeedModule } from './seed/seed.module';
     },
     {
       provide: APP_INTERCEPTOR,
+      useClass: RequestLoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
       useClass: SuccessEnvelopeInterceptor,
     },
     {
@@ -86,6 +94,8 @@ import { SeedModule } from './seed/seed.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DevelopmentWaitMiddleware).forRoutes('*');
+    consumer
+      .apply(RequestContextMiddleware, DevelopmentWaitMiddleware)
+      .forRoutes('*');
   }
 }
