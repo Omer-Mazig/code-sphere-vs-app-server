@@ -165,6 +165,8 @@ export class InteractionsService {
 
     await this.commentsRepository.save(comment);
 
+    // TODO: trigger mention notifications here (notify mentioned users with author context).
+
     return this.getCommentById(comment.id, authorId);
   }
 
@@ -421,7 +423,7 @@ export class InteractionsService {
   }
 
   private async enrichComments<
-    T extends { id: string; createdAt: Date; depth: number },
+    T extends { id: string; createdAt: Date; depth: number; content: string },
   >(items: T[], currentUserId?: string) {
     if (items.length === 0) return [];
 
@@ -465,11 +467,35 @@ export class InteractionsService {
       likedSet = new Set(liked.map((like) => like.targetId));
     }
 
+    const mentionUsernames = Array.from(
+      new Set(
+        items.flatMap((item) => this.extractMentionedUsernames(item.content)),
+      ),
+    );
+    const mentionUsers = mentionUsernames.length
+      ? await this.usersRepository.find({
+          where: { username: In(mentionUsernames) },
+          select: ['id', 'username', 'displayName', 'avatarUrl'],
+        })
+      : [];
+    const mentionUserMap = new Map(
+      mentionUsers.map((user) => [user.username, user]),
+    );
+
     return items.map((item) => ({
       ...item,
       likesCount: likesCountMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
       repliesCount: repliesCountMap.get(item.id) ?? 0,
+      mentionedUsers: this.extractMentionedUsernames(item.content)
+        .map((username) => mentionUserMap.get(username))
+        .filter((user): user is User => !!user)
+        .map((user) => ({
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+        })),
     }));
   }
 
