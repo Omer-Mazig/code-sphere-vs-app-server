@@ -16,6 +16,8 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 
 const MAX_COMMENT_DEPTH = 2;
 const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
+const MENTION_CANDIDATES_POOL_LIMIT = 150;
+const MENTION_CANDIDATES_SEARCH_LIMIT = 50;
 
 @Injectable()
 export class InteractionsService {
@@ -143,7 +145,14 @@ export class InteractionsService {
       depth = parent.depth + 1;
     }
 
-    await this.validateMentionsForPost(dto.targetId, dto.targetType, dto.content);
+    if (dto.parentId) {
+      await this.validateMentionsForReply(
+        dto.parentId,
+        dto.targetId,
+        dto.targetType,
+        dto.content,
+      );
+    }
 
     const comment = this.commentsRepository.create({
       authorId,
@@ -186,11 +195,14 @@ export class InteractionsService {
       );
     }
 
-    await this.validateMentionsForPost(
-      comment.targetId,
-      comment.targetType,
-      dto.content,
-    );
+    if (comment.parentId) {
+      await this.validateMentionsForReply(
+        comment.parentId,
+        comment.targetId,
+        comment.targetType,
+        dto.content,
+      );
+    }
 
     comment.content = dto.content;
     await this.commentsRepository.save(comment);
@@ -305,6 +317,54 @@ export class InteractionsService {
     );
 
     return enriched;
+  }
+
+  async getCommentMentionCandidatesForReply(
+    targetId: string,
+    parentId: string,
+    query?: string,
+  ) {
+    await this.ensureTargetExists(targetId, TargetType.POST);
+    const parent = await this.commentsRepository.findOne({
+      where: { id: parentId },
+    });
+    if (!parent) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" not found`,
+        'Invalid parent comment',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (parent.targetId !== targetId || parent.targetType !== TargetType.POST) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" target mismatch`,
+        'Invalid parent comment',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const allowedUsers = await this.getAllowedMentionUsersForReply(parent);
+
+    const normalizedQuery = query?.trim();
+    const filtered = normalizedQuery
+      ? allowedUsers.filter((user) => {
+          const search = normalizedQuery.toLowerCase();
+          const usernameMatch = user.username.toLowerCase().includes(search);
+          const displayNameMatch = (user.displayName ?? '')
+            .toLowerCase()
+            .includes(search);
+          return usernameMatch || displayNameMatch;
+        })
+      : allowedUsers;
+
+    return filtered.slice(
+      0,
+      normalizedQuery
+        ? MENTION_CANDIDATES_SEARCH_LIMIT
+        : MENTION_CANDIDATES_POOL_LIMIT,
+    );
   }
 
   // --- Shares ---
@@ -466,7 +526,8 @@ export class InteractionsService {
     }
   }
 
-  private async validateMentionsForPost(
+  private async validateMentionsForReply(
+    parentId: string,
     targetId: string,
     targetType: TargetType,
     content: string,
@@ -475,10 +536,35 @@ export class InteractionsService {
       return;
     }
 
+    const parent = await this.commentsRepository.findOne({
+      where: { id: parentId },
+    });
+
+    if (!parent) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" not found`,
+        'Invalid parent comment',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (parent.targetId !== targetId || parent.targetType !== TargetType.POST) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" target mismatch`,
+        'Invalid parent comment',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const usernames = this.extractMentionedUsernames(content);
     if (usernames.length === 0) {
       return;
     }
+
+    const allowedUsers = await this.getAllowedMentionUsersForReply(parent);
+    const allowedUserIds = new Set(allowedUsers.map((user) => user.id));
 
     const users = await this.usersRepository.find({
       where: { username: In(usernames) },
@@ -486,41 +572,42 @@ export class InteractionsService {
     });
     const usernameToUser = new Map(users.map((user) => [user.username, user]));
 
-    const missingUsernames = usernames.filter(
-      (username) => !usernameToUser.has(username),
-    );
-    if (missingUsernames.length > 0) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_MENTION_NOT_ALLOWED,
-        `Mentioned users not found: ${missingUsernames.join(', ')}`,
-        'You can only tag users who commented on this post',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const commenterRows: { authorId: string }[] = await this.commentsRepository
-      .createQueryBuilder('comment')
-      .select('DISTINCT comment.authorId', 'authorId')
-      .where('comment.targetId = :targetId', { targetId })
-      .andWhere('comment.targetType = :targetType', {
-        targetType: TargetType.POST,
-      })
-      .getRawMany();
-
-    const commenterIds = new Set(commenterRows.map((row) => row.authorId));
+    // Unknown @tokens are treated as plain text and are allowed.
     const blockedUsernames = usernames.filter((username) => {
       const user = usernameToUser.get(username);
-      return !user || !commenterIds.has(user.id);
+      return !!user && !allowedUserIds.has(user.id);
     });
 
     if (blockedUsernames.length > 0) {
       throw new BusinessException(
         ErrorCode.COMMENT_MENTION_NOT_ALLOWED,
-        `Users mentioned without prior post comment: ${blockedUsernames.join(', ')}`,
-        'You can only tag users who commented on this post',
+        `Users mentioned outside reply context: ${blockedUsernames.join(', ')}`,
+        'You can only tag the parent commenter or users who replied to this comment',
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  private async getAllowedMentionUsersForReply(parent: Comment) {
+    const replyAuthorRows: { authorId: string }[] = await this.commentsRepository
+      .createQueryBuilder('comment')
+      .select('DISTINCT comment.authorId', 'authorId')
+      .where('comment.parentId = :parentId', { parentId: parent.id })
+      .getRawMany();
+
+    const allowedIds = Array.from(
+      new Set([parent.authorId, ...replyAuthorRows.map((row) => row.authorId)]),
+    );
+
+    if (allowedIds.length === 0) {
+      return [];
+    }
+
+    return this.usersRepository.find({
+      where: { id: In(allowedIds) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+      order: { username: 'ASC' },
+    });
   }
 
   private extractMentionedUsernames(content: string): string[] {

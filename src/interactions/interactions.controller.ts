@@ -13,6 +13,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { LikeDto } from './dto/like.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
+import { CommentMentionCandidatesQueryDto } from './dto/comment-mention-candidates-query.dto';
 import { PaginationQueryDto } from '../common/dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
 import { InteractionsService } from './interactions.service';
@@ -86,6 +87,18 @@ export class InteractionsController {
   @Post('comments')
   addComment(@CurrentUser() userId: string, @Body() dto: CreateCommentDto) {
     return this.interactionsService.addComment(userId, dto);
+  }
+
+  @Get('comments/mention-candidates')
+  @Public()
+  getCommentMentionCandidates(
+    @Query() query: CommentMentionCandidatesQueryDto,
+  ) {
+    return this.interactionsService.getCommentMentionCandidatesForReply(
+      query.targetId,
+      query.parentId,
+      query.query,
+    );
   }
 
   @Patch('comments/:id')
