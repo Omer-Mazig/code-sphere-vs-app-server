@@ -12,7 +12,10 @@ import {
   envValidationSchema,
 } from './config';
 import { AuthGuard } from './common/guards';
-import { PaginatedResponseInterceptor } from './common/interceptors';
+import {
+  PaginatedResponseInterceptor,
+  SuccessEnvelopeInterceptor,
+} from './common/interceptors';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PostsModule } from './posts/posts.module';
@@ -70,6 +73,10 @@ import { SeedModule } from './seed/seed.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SuccessEnvelopeInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,
