@@ -9,35 +9,28 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { InteractionsService } from './interactions.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { LikeDto } from './dto/like.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
+import { PaginationQueryDto } from '../common/dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
+import { InteractionsService } from './interactions.service';
 
 @ApiTags('Interactions')
 @Controller('interactions')
 export class InteractionsController {
-  constructor(
-    private readonly interactionsService: InteractionsService,
-  ) {}
+  constructor(private readonly interactionsService: InteractionsService) {}
 
   // --- Likes ---
 
   @Post('likes')
-  like(
-    @CurrentUser() userId: string,
-    @Body() dto: LikeDto,
-  ) {
+  like(@CurrentUser() userId: string, @Body() dto: LikeDto) {
     return this.interactionsService.like(userId, dto.targetId, dto.targetType);
   }
 
   @Delete('likes')
-  unlike(
-    @CurrentUser() userId: string,
-    @Body() dto: LikeDto,
-  ) {
+  unlike(@CurrentUser() userId: string, @Body() dto: LikeDto) {
     return this.interactionsService.unlike(
       userId,
       dto.targetId,
@@ -55,10 +48,7 @@ export class InteractionsController {
   }
 
   @Get('likes/status')
-  isLiked(
-    @CurrentUser() userId: string,
-    @Query() query: LikeDto,
-  ) {
+  isLiked(@CurrentUser() userId: string, @Query() query: LikeDto) {
     return this.interactionsService.isLiked(
       userId,
       query.targetId,
@@ -71,15 +61,30 @@ export class InteractionsController {
   @Get('comments')
   @Public()
   @Paginated()
-  getComments(@Query() query: InteractionQueryDto) {
-    return this.interactionsService.getComments(query);
+  getComments(
+    @Query() query: InteractionQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.interactionsService.getComments(query, currentUserId);
+  }
+
+  @Get('comments/:id/replies')
+  @Public()
+  @Paginated()
+  getCommentReplies(
+    @Param('id') commentId: string,
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.interactionsService.getCommentReplies(
+      commentId,
+      query,
+      currentUserId,
+    );
   }
 
   @Post('comments')
-  addComment(
-    @CurrentUser() userId: string,
-    @Body() dto: CreateCommentDto,
-  ) {
+  addComment(@CurrentUser() userId: string, @Body() dto: CreateCommentDto) {
     return this.interactionsService.addComment(userId, dto);
   }
 
@@ -93,25 +98,15 @@ export class InteractionsController {
   }
 
   @Delete('comments/:id')
-  deleteComment(
-    @Param('id') id: string,
-    @CurrentUser() userId: string,
-  ) {
+  deleteComment(@Param('id') id: string, @CurrentUser() userId: string) {
     return this.interactionsService.deleteComment(id, userId);
   }
 
   // --- Shares ---
 
   @Post('shares')
-  share(
-    @CurrentUser() userId: string,
-    @Body() dto: LikeDto,
-  ) {
-    return this.interactionsService.share(
-      userId,
-      dto.targetId,
-      dto.targetType,
-    );
+  share(@CurrentUser() userId: string, @Body() dto: LikeDto) {
+    return this.interactionsService.share(userId, dto.targetId, dto.targetType);
   }
 
   @Get('shares/count')

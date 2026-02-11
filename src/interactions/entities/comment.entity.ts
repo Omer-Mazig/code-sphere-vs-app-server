@@ -6,11 +6,14 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { TargetType } from './like.entity';
 
 @Entity('comments')
+@Index(['targetId', 'targetType', 'parentId', 'createdAt'])
+@Index(['parentId', 'createdAt'])
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -28,7 +31,10 @@ export class Comment {
   content: string;
 
   @Column({ nullable: true })
-  parentId: string;
+  parentId: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  depth: number;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'authorId' })

@@ -12,6 +12,7 @@ import { User } from '../../users/entities/user.entity';
 export enum TargetType {
   POST = 'POST',
   ARTICLE = 'ARTICLE',
+  COMMENT = 'COMMENT',
 }
 
 @Entity('likes')

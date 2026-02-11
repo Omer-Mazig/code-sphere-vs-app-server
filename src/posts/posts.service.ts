@@ -2,6 +2,7 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
+import { Comment } from '../interactions/entities/comment.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -18,6 +19,8 @@ export class PostsService {
     private readonly postsRepository: Repository<Post>,
     @InjectRepository(Like)
     private readonly likesRepository: Repository<Like>,
+    @InjectRepository(Comment)
+    private readonly commentsRepository: Repository<Comment>,
   ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
@@ -104,11 +107,12 @@ export class PostsService {
     }
 
     const formatted = this.formatPost(post);
-    const [enriched] = await this.enrichWithLikes(
+    const [withLikes] = await this.enrichWithLikes(
       [formatted],
       currentUserId,
     );
-    return enriched;
+    const [withCommentPreview] = await this.enrichWithCommentPreview([withLikes]);
+    return withCommentPreview;
   }
 
   async getFeed(query: PostQueryDto, currentUserId?: string) {
@@ -129,7 +133,8 @@ export class PostsService {
     const [posts, total] = await qb.getManyAndCount();
 
     const items = posts.map((post) => this.formatPost(post));
-    const enrichedItems = await this.enrichWithLikes(items, currentUserId);
+    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const enrichedItems = await this.enrichWithCommentPreview(withLikes);
 
     return {
       items: enrichedItems,
@@ -195,5 +200,66 @@ export class PostsService {
       likesCount: countMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
     }));
+  }
+
+  private async enrichWithCommentPreview<T extends { id: string }>(items: T[]) {
+    if (items.length === 0) return [];
+
+    const ids = items.map((item) => item.id);
+
+    const countsRaw: { targetId: string; count: string }[] =
+      await this.commentsRepository
+        .createQueryBuilder('comment')
+        .select('comment.targetId', 'targetId')
+        .addSelect('COUNT(*)', 'count')
+        .where('comment.targetId IN (:...ids)', { ids })
+        .andWhere('comment.targetType = :targetType', {
+          targetType: TargetType.POST,
+        })
+        .groupBy('comment.targetId')
+        .getRawMany();
+
+    const countMap = new Map(
+      countsRaw.map((row) => [row.targetId, Number(row.count)]),
+    );
+
+    const latestComments = await this.commentsRepository.find({
+      where: {
+        targetId: In(ids),
+        targetType: TargetType.POST,
+      },
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const latestMap = new Map<string, (typeof latestComments)[number]>();
+    for (const comment of latestComments) {
+      if (!latestMap.has(comment.targetId)) {
+        latestMap.set(comment.targetId, comment);
+      }
+    }
+
+    return items.map((item) => {
+      const latestComment = latestMap.get(item.id);
+      return {
+        ...item,
+        commentsCount: countMap.get(item.id) ?? 0,
+        latestComment: latestComment
+          ? {
+              id: latestComment.id,
+              content: latestComment.content,
+              createdAt: latestComment.createdAt,
+              author: latestComment.author
+                ? {
+                    id: latestComment.author.id,
+                    username: latestComment.author.username,
+                    displayName: latestComment.author.displayName,
+                    avatarUrl: latestComment.author.avatarUrl,
+                  }
+                : null,
+            }
+          : null,
+      };
+    });
   }
 }
