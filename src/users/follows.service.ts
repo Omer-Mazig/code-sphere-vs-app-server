@@ -127,10 +127,8 @@ export class FollowsService {
       .createQueryBuilder('follow')
       .leftJoinAndSelect(`follow.${relation}`, relation)
       .where(`follow.${whereColumn} = :targetUserId`, { targetUserId })
-      .orderBy(
-        `LOWER(COALESCE("${relation}"."displayName", "${relation}"."username"))`,
-        'ASC',
-      )
+      .orderBy(`${relation}.displayName`, 'ASC', 'NULLS LAST')
+      .addOrderBy(`${relation}.username`, 'ASC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
