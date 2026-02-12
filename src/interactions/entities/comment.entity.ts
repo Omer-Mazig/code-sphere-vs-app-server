@@ -33,9 +33,6 @@ export class Comment {
   @Column({ nullable: true })
   parentId: string | null;
 
-  @Column({ type: 'int', default: 0 })
-  depth: number;
-
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'authorId' })
   author: User;

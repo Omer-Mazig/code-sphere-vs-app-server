@@ -15,7 +15,6 @@ import { PaginationQueryDto } from '../common/dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 
-const MAX_COMMENT_DEPTH = 2;
 const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
 const MENTION_CANDIDATES_POOL_LIMIT = 150;
 const MENTION_CANDIDATES_SEARCH_LIMIT = 50;
@@ -109,7 +108,6 @@ export class InteractionsService {
     this.assertCommentTargetType(dto.targetType);
     await this.ensureTargetExists(dto.targetId, dto.targetType);
 
-    let depth = 0;
     if (dto.parentId) {
       const parent = await this.commentsRepository.findOne({
         where: { id: dto.parentId },
@@ -136,16 +134,14 @@ export class InteractionsService {
         );
       }
 
-      if (parent.depth >= MAX_COMMENT_DEPTH) {
+      if (parent.parentId) {
         throw new BusinessException(
-          ErrorCode.COMMENT_DEPTH_EXCEEDED,
-          `Comment reply depth exceeded for parent "${dto.parentId}"`,
-          'Maximum reply depth reached',
+          ErrorCode.COMMENT_PARENT_INVALID,
+          `Parent comment "${dto.parentId}" is already a reply`,
+          'You can only reply to top-level comments',
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      depth = parent.depth + 1;
     }
 
     await this.validateMentionsForContext(
@@ -162,7 +158,6 @@ export class InteractionsService {
       targetType: dto.targetType,
       content: dto.content,
       parentId: dto.parentId ?? null,
-      depth,
     });
 
     await this.commentsRepository.save(comment);
@@ -401,7 +396,6 @@ export class InteractionsService {
       targetId: comment.targetId,
       targetType: comment.targetType,
       parentId: comment.parentId,
-      depth: comment.depth,
       author: comment.author
         ? {
             id: comment.author.id,
@@ -416,7 +410,7 @@ export class InteractionsService {
   }
 
   private async enrichComments<
-    T extends { id: string; createdAt: Date; depth: number; content: string },
+    T extends { id: string; createdAt: Date; content: string },
   >(items: T[], currentUserId?: string) {
     if (items.length === 0) return [];
 
