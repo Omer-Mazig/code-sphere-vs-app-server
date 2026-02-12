@@ -7,11 +7,20 @@ import { Share } from './entities/share.entity';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
 import { User } from '../users/entities/user.entity';
+import { Follow } from '../users/entities/follow.entity';
 import { InteractionsService } from './interactions.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Like, Comment, Share, Post, Article, User]),
+    TypeOrmModule.forFeature([
+      Like,
+      Comment,
+      Share,
+      Post,
+      Article,
+      User,
+      Follow,
+    ]),
   ],
   controllers: [InteractionsController],
   providers: [InteractionsService],

@@ -7,6 +7,7 @@ import { Share } from './entities/share.entity';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
 import { User } from '../users/entities/user.entity';
+import { Follow } from '../users/entities/follow.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { InteractionQueryDto } from './dto/interaction-query.dto';
@@ -34,6 +35,8 @@ export class InteractionsService {
     private readonly articlesRepository: Repository<Article>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Follow)
+    private readonly followsRepository: Repository<Follow>,
   ) {}
 
   // --- Likes ---
@@ -145,14 +148,13 @@ export class InteractionsService {
       depth = parent.depth + 1;
     }
 
-    if (dto.parentId) {
-      await this.validateMentionsForReply(
-        dto.parentId,
-        dto.targetId,
-        dto.targetType,
-        dto.content,
-      );
-    }
+    await this.validateMentionsForContext(
+      authorId,
+      dto.parentId,
+      dto.targetId,
+      dto.targetType,
+      dto.content,
+    );
 
     const comment = this.commentsRepository.create({
       authorId,
@@ -197,14 +199,13 @@ export class InteractionsService {
       );
     }
 
-    if (comment.parentId) {
-      await this.validateMentionsForReply(
-        comment.parentId,
-        comment.targetId,
-        comment.targetType,
-        dto.content,
-      );
-    }
+    await this.validateMentionsForContext(
+      userId,
+      comment.parentId ?? undefined,
+      comment.targetId,
+      comment.targetType,
+      dto.content,
+    );
 
     comment.content = dto.content;
     await this.commentsRepository.save(comment);
@@ -322,46 +323,38 @@ export class InteractionsService {
   }
 
   async getCommentMentionCandidatesForReply(
+    currentUserId: string | undefined,
     targetId: string,
-    parentId: string,
+    parentId?: string,
     query?: string,
   ) {
     await this.ensureTargetExists(targetId, TargetType.POST);
-    const parent = await this.commentsRepository.findOne({
-      where: { id: parentId },
-    });
-    if (!parent) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_PARENT_INVALID,
-        `Parent comment "${parentId}" not found`,
-        'Invalid parent comment',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-    if (parent.targetId !== targetId || parent.targetType !== TargetType.POST) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_PARENT_INVALID,
-        `Parent comment "${parentId}" target mismatch`,
-        'Invalid parent comment',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const allowedUsers = await this.getAllowedMentionUsersForReply(parent);
 
     const normalizedQuery = query?.trim();
-    const filtered = normalizedQuery
-      ? allowedUsers.filter((user) => {
-          const search = normalizedQuery.toLowerCase();
-          const usernameMatch = user.username.toLowerCase().includes(search);
-          const displayNameMatch = (user.displayName ?? '')
-            .toLowerCase()
-            .includes(search);
-          return usernameMatch || displayNameMatch;
-        })
-      : allowedUsers;
+    const threadCandidates = parentId
+      ? await this.getThreadMentionUsers(targetId, parentId)
+      : [];
+    const mutualCandidates =
+      currentUserId && normalizedQuery
+        ? await this.searchMutualFollowUsers(currentUserId, normalizedQuery)
+        : [];
 
-    return filtered.slice(
+    const mergedMap = new Map<
+      string,
+      { id: string; username: string; displayName: string | null; avatarUrl: string | null }
+    >();
+
+    for (const user of [...threadCandidates, ...mutualCandidates]) {
+      if (!user?.id) continue;
+      mergedMap.set(user.id, {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      });
+    }
+
+    return Array.from(mergedMap.values()).slice(
       0,
       normalizedQuery
         ? MENTION_CANDIDATES_SEARCH_LIMIT
@@ -552,8 +545,9 @@ export class InteractionsService {
     }
   }
 
-  private async validateMentionsForReply(
-    parentId: string,
+  private async validateMentionsForContext(
+    currentUserId: string,
+    parentId: string | undefined,
     targetId: string,
     targetType: TargetType,
     content: string,
@@ -562,6 +556,48 @@ export class InteractionsService {
       return;
     }
 
+    const usernames = this.extractMentionedUsernames(content);
+    if (usernames.length === 0) {
+      return;
+    }
+
+    const allowedUserIds = new Set<string>();
+    if (parentId) {
+      const threadUsers = await this.getThreadMentionUsers(targetId, parentId);
+      for (const user of threadUsers) {
+        allowedUserIds.add(user.id);
+      }
+    }
+    const mutualUsers = await this.getMutualFollowUsers(currentUserId);
+    for (const user of mutualUsers) {
+      allowedUserIds.add(user.id);
+    }
+
+    const users = await this.usersRepository.find({
+      where: { username: In(usernames) },
+      select: ['id', 'username'],
+    });
+    const usernameToUser = new Map(users.map((user) => [user.username, user]));
+
+    // Unknown @tokens are treated as plain text and are allowed.
+    const blockedUsernames = usernames.filter((username) => {
+      const user = usernameToUser.get(username);
+      if (!user) return false;
+      if (user.id === currentUserId) return true;
+      return !allowedUserIds.has(user.id);
+    });
+
+    if (blockedUsernames.length > 0) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_MENTION_NOT_ALLOWED,
+        `Users mentioned outside reply context: ${blockedUsernames.join(', ')}`,
+        'You can only tag mutual followers, thread participants, and not yourself',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private async getThreadMentionUsers(targetId: string, parentId: string) {
     const parent = await this.commentsRepository.findOne({
       where: { id: parentId },
     });
@@ -584,41 +620,10 @@ export class InteractionsService {
       );
     }
 
-    const usernames = this.extractMentionedUsernames(content);
-    if (usernames.length === 0) {
-      return;
-    }
-
-    const allowedUsers = await this.getAllowedMentionUsersForReply(parent);
-    const allowedUserIds = new Set(allowedUsers.map((user) => user.id));
-
-    const users = await this.usersRepository.find({
-      where: { username: In(usernames) },
-      select: ['id', 'username'],
-    });
-    const usernameToUser = new Map(users.map((user) => [user.username, user]));
-
-    // Unknown @tokens are treated as plain text and are allowed.
-    const blockedUsernames = usernames.filter((username) => {
-      const user = usernameToUser.get(username);
-      return !!user && !allowedUserIds.has(user.id);
-    });
-
-    if (blockedUsernames.length > 0) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_MENTION_NOT_ALLOWED,
-        `Users mentioned outside reply context: ${blockedUsernames.join(', ')}`,
-        'You can only tag the parent commenter or users who replied to this comment',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  private async getAllowedMentionUsersForReply(parent: Comment) {
     const replyAuthorRows: { authorId: string }[] = await this.commentsRepository
       .createQueryBuilder('comment')
       .select('DISTINCT comment.authorId', 'authorId')
-      .where('comment.parentId = :parentId', { parentId: parent.id })
+      .where('comment.parentId = :parentId', { parentId })
       .getRawMany();
 
     const allowedIds = Array.from(
@@ -633,6 +638,42 @@ export class InteractionsService {
       where: { id: In(allowedIds) },
       select: ['id', 'username', 'displayName', 'avatarUrl'],
       order: { username: 'ASC' },
+    });
+  }
+
+  private async getMutualFollowUsers(currentUserId: string) {
+    const rows: { userId: string }[] = await this.followsRepository
+      .createQueryBuilder('f1')
+      .innerJoin(
+        Follow,
+        'f2',
+        'f1.followingId = f2.followerId AND f2.followingId = :currentUserId',
+        { currentUserId },
+      )
+      .select('f1.followingId', 'userId')
+      .where('f1.followerId = :currentUserId', { currentUserId })
+      .andWhere('f1.followingId <> :currentUserId', { currentUserId })
+      .getRawMany();
+
+    const mutualIds = Array.from(new Set(rows.map((row) => row.userId)));
+    if (mutualIds.length === 0) return [];
+
+    return this.usersRepository.find({
+      where: { id: In(mutualIds) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+      order: { username: 'ASC' },
+    });
+  }
+
+  private async searchMutualFollowUsers(currentUserId: string, query: string) {
+    const mutualUsers = await this.getMutualFollowUsers(currentUserId);
+    const search = query.toLowerCase();
+    return mutualUsers.filter((user) => {
+      const usernameMatch = user.username.toLowerCase().includes(search);
+      const displayNameMatch = (user.displayName ?? '')
+        .toLowerCase()
+        .includes(search);
+      return usernameMatch || displayNameMatch;
     });
   }
 

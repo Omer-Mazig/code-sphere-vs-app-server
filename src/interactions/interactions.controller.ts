@@ -92,9 +92,11 @@ export class InteractionsController {
   @Get('comments/mention-candidates')
   @Public()
   getCommentMentionCandidates(
+    @CurrentUser() currentUserId: string,
     @Query() query: CommentMentionCandidatesQueryDto,
   ) {
     return this.interactionsService.getCommentMentionCandidatesForReply(
+      currentUserId,
       query.targetId,
       query.parentId,
       query.query,

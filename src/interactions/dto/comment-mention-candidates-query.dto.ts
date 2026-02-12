@@ -6,9 +6,10 @@ export class CommentMentionCandidatesQueryDto {
   @IsString()
   targetId: string;
 
-  @ApiProperty({ example: 'uuid-of-parent-comment' })
+  @ApiPropertyOptional({ example: 'uuid-of-parent-comment' })
+  @IsOptional()
   @IsString()
-  parentId: string;
+  parentId?: string;
 
   @ApiPropertyOptional({ example: 'ali' })
   @IsOptional()
