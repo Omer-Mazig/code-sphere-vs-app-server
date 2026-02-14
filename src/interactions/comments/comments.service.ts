@@ -1,112 +1,40 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
-import { Like, TargetType } from './entities/like.entity';
-import { Comment } from './entities/comment.entity';
-import { Share } from './entities/share.entity';
-import { Post } from '../posts/entities/post.entity';
-import { Article } from '../articles/entities/article.entity';
-import { User } from '../users/entities/user.entity';
-import { Follow } from '../users/entities/follow.entity';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import { UpdateCommentDto } from './dto/update-comment.dto';
-import { InteractionQueryDto } from './dto/interaction-query.dto';
-import { PaginationQueryDto } from '../common/dto';
-import { BusinessException } from '../common/errors/business.exception';
-import { ErrorCode } from '../common/errors/error-codes.enum';
+import { Comment } from '../entities/comment.entity';
+import { Like, TargetType } from '../entities/like.entity';
+import { User } from '../../users/entities/user.entity';
+import { Follow } from '../../users/entities/follow.entity';
+import { CreateCommentDto, InteractionQueryDto, UpdateCommentDto } from '../dto';
+import { PaginationQueryDto } from '../../common/dto';
+import { BusinessException } from '../../common/errors/business.exception';
+import { ErrorCode } from '../../common/errors/error-codes.enum';
+import { InteractionTargetValidatorService } from '../shared';
 
 const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
 const MENTION_CANDIDATES_POOL_LIMIT = 150;
 const MENTION_CANDIDATES_SEARCH_LIMIT = 50;
 
 @Injectable()
-export class InteractionsService {
+export class CommentsService {
   constructor(
-    @InjectRepository(Like)
-    private readonly likesRepository: Repository<Like>,
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
-    @InjectRepository(Share)
-    private readonly sharesRepository: Repository<Share>,
-    @InjectRepository(Post)
-    private readonly postsRepository: Repository<Post>,
-    @InjectRepository(Article)
-    private readonly articlesRepository: Repository<Article>,
+    @InjectRepository(Like)
+    private readonly likesRepository: Repository<Like>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Follow)
     private readonly followsRepository: Repository<Follow>,
+    private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
   ) {}
 
-  // --- Likes ---
-
-  async like(userId: string, targetId: string, targetType: TargetType) {
-    await this.ensureTargetExists(targetId, targetType);
-
-    const existing = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
-    });
-
-    if (existing) {
-      throw new BusinessException(
-        ErrorCode.ALREADY_LIKED,
-        `User "${userId}" already liked ${targetType} "${targetId}"`,
-        'You have already liked this',
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const like = this.likesRepository.create({
-      userId,
-      targetId,
-      targetType,
-    });
-
-    await this.likesRepository.save(like);
-
-    return { message: 'Liked successfully' };
-  }
-
-  async unlike(userId: string, targetId: string, targetType: TargetType) {
-    const existing = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
-    });
-
-    if (!existing) {
-      throw new BusinessException(
-        ErrorCode.NOT_LIKED,
-        `User "${userId}" has not liked ${targetType} "${targetId}"`,
-        'You have not liked this',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    await this.likesRepository.remove(existing);
-
-    return { message: 'Unliked successfully' };
-  }
-
-  async getLikesCount(targetId: string, targetType: TargetType) {
-    const count = await this.likesRepository.count({
-      where: { targetId, targetType },
-    });
-
-    return { count };
-  }
-
-  async isLiked(userId: string, targetId: string, targetType: TargetType) {
-    const like = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
-    });
-
-    return { isLiked: !!like };
-  }
-
-  // --- Comments ---
-
   async addComment(authorId: string, dto: CreateCommentDto) {
-    this.assertCommentTargetType(dto.targetType);
-    await this.ensureTargetExists(dto.targetId, dto.targetType);
+    this.interactionTargetValidatorService.assertCommentTargetType(dto.targetType);
+    await this.interactionTargetValidatorService.ensureTargetExists(
+      dto.targetId,
+      dto.targetType,
+    );
 
     if (dto.parentId) {
       const parent = await this.commentsRepository.findOne({
@@ -163,15 +91,10 @@ export class InteractionsService {
     await this.commentsRepository.save(comment);
 
     // TODO: trigger mention notifications here (notify mentioned users with author context).
-
     return this.getCommentById(comment.id, authorId);
   }
 
-  async updateComment(
-    commentId: string,
-    userId: string,
-    dto: UpdateCommentDto,
-  ) {
+  async updateComment(commentId: string, userId: string, dto: UpdateCommentDto) {
     const comment = await this.commentsRepository.findOne({
       where: { id: commentId },
     });
@@ -237,7 +160,7 @@ export class InteractionsService {
   }
 
   async getComments(query: InteractionQueryDto, currentUserId?: string) {
-    this.assertCommentTargetType(query.targetType);
+    this.interactionTargetValidatorService.assertCommentTargetType(query.targetType);
 
     const { page, limit, targetId, targetType, parentId } = query;
     const skip = (page - 1) * limit;
@@ -245,8 +168,9 @@ export class InteractionsService {
     const where = parentId
       ? { targetId, targetType, parentId }
       : { targetId, targetType, parentId: IsNull() };
-
-    const order = parentId ? ({ createdAt: 'ASC' } as const) : ({ createdAt: 'DESC' } as const);
+    const order = parentId
+      ? ({ createdAt: 'ASC' } as const)
+      : ({ createdAt: 'DESC' } as const);
 
     const [comments, total] = await this.commentsRepository.findAndCount({
       where,
@@ -257,7 +181,7 @@ export class InteractionsService {
     });
 
     const items = await this.enrichComments(
-      comments.map((c) => this.formatComment(c)),
+      comments.map((comment) => this.formatComment(comment)),
       currentUserId,
     );
 
@@ -313,7 +237,6 @@ export class InteractionsService {
       [this.formatComment(comment)],
       currentUserId,
     );
-
     return enriched;
   }
 
@@ -323,7 +246,10 @@ export class InteractionsService {
     parentId?: string,
     query?: string,
   ) {
-    await this.ensureTargetExists(targetId, TargetType.POST);
+    await this.interactionTargetValidatorService.ensureTargetExists(
+      targetId,
+      TargetType.POST,
+    );
 
     const normalizedQuery = query?.trim();
     const threadCandidates = parentId
@@ -336,7 +262,12 @@ export class InteractionsService {
 
     const mergedMap = new Map<
       string,
-      { id: string; username: string; displayName: string | null; avatarUrl: string | null }
+      {
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+      }
     >();
 
     for (const user of [...threadCandidates, ...mutualCandidates]) {
@@ -356,38 +287,6 @@ export class InteractionsService {
         : MENTION_CANDIDATES_POOL_LIMIT,
     );
   }
-
-  // --- Shares ---
-
-  async share(userId: string, targetId: string, targetType: TargetType) {
-    const existing = await this.sharesRepository.findOne({
-      where: { userId, targetId, targetType },
-    });
-
-    if (existing) {
-      return { message: 'Already shared' };
-    }
-
-    const share = this.sharesRepository.create({
-      userId,
-      targetId,
-      targetType,
-    });
-
-    await this.sharesRepository.save(share);
-
-    return { message: 'Shared successfully' };
-  }
-
-  async getSharesCount(targetId: string, targetType: TargetType) {
-    const count = await this.sharesRepository.count({
-      where: { targetId, targetType },
-    });
-
-    return { count };
-  }
-
-  // --- Helpers ---
 
   private formatComment(comment: Comment) {
     return {
@@ -414,7 +313,7 @@ export class InteractionsService {
   >(items: T[], currentUserId?: string) {
     if (items.length === 0) return [];
 
-    const ids = items.map((i) => i.id);
+    const ids = items.map((item) => item.id);
 
     const likesCountRaw: { targetId: string; count: string }[] =
       await this.likesRepository
@@ -486,59 +385,6 @@ export class InteractionsService {
     }));
   }
 
-  private assertCommentTargetType(targetType: TargetType) {
-    if (targetType === TargetType.COMMENT) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_TARGET_INVALID,
-        'Comment target type cannot be COMMENT',
-        'Comments can only target posts or articles',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  private async ensureTargetExists(targetId: string, targetType: TargetType) {
-    if (targetType === TargetType.POST) {
-      const post = await this.postsRepository.findOne({ where: { id: targetId } });
-      if (!post) {
-        throw new BusinessException(
-          ErrorCode.POST_NOT_FOUND,
-          `Post "${targetId}" not found`,
-          'Post not found',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      return;
-    }
-
-    if (targetType === TargetType.ARTICLE) {
-      const article = await this.articlesRepository.findOne({
-        where: { id: targetId },
-      });
-      if (!article) {
-        throw new BusinessException(
-          ErrorCode.ARTICLE_NOT_FOUND,
-          `Article "${targetId}" not found`,
-          'Article not found',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      return;
-    }
-
-    const comment = await this.commentsRepository.findOne({
-      where: { id: targetId },
-    });
-    if (!comment) {
-      throw new BusinessException(
-        ErrorCode.COMMENT_NOT_FOUND,
-        `Comment "${targetId}" not found`,
-        'Comment not found',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-  }
-
   private async validateMentionsForContext(
     currentUserId: string,
     parentId: string | undefined,
@@ -562,6 +408,7 @@ export class InteractionsService {
         allowedUserIds.add(user.id);
       }
     }
+
     const mutualUsers = await this.getMutualFollowUsers(currentUserId);
     for (const user of mutualUsers) {
       allowedUserIds.add(user.id);
