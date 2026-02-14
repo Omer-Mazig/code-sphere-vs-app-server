@@ -4,7 +4,7 @@ import { In, IsNull, Repository } from 'typeorm';
 import { Comment } from '../entities/comment.entity';
 import { Like, TargetType } from '../entities/like.entity';
 import { User } from '../../users/entities/user.entity';
-import { Follow } from '../../users/entities/follow.entity';
+import { FollowsService } from '../../users/follows.service';
 import { CreateCommentDto, InteractionQueryDto, UpdateCommentDto } from '../dto';
 import { PaginationQueryDto } from '../../common/dto';
 import { BusinessException } from '../../common/errors/business.exception';
@@ -24,8 +24,7 @@ export class CommentsService {
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
-    @InjectRepository(Follow)
-    private readonly followsRepository: Repository<Follow>,
+    private readonly followsService: FollowsService,
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
   ) {}
 
@@ -257,7 +256,10 @@ export class CommentsService {
       : [];
     const mutualCandidates =
       currentUserId && normalizedQuery
-        ? await this.searchMutualFollowUsers(currentUserId, normalizedQuery)
+        ? await this.followsService.searchMutualFollowUsers(
+            currentUserId,
+            normalizedQuery,
+          )
         : [];
 
     const mergedMap = new Map<
@@ -409,7 +411,9 @@ export class CommentsService {
       }
     }
 
-    const mutualUsers = await this.getMutualFollowUsers(currentUserId);
+    const mutualUsers = await this.followsService.getMutualFollowUsers(
+      currentUserId,
+    );
     for (const user of mutualUsers) {
       allowedUserIds.add(user.id);
     }
@@ -479,42 +483,6 @@ export class CommentsService {
       where: { id: In(allowedIds) },
       select: ['id', 'username', 'displayName', 'avatarUrl'],
       order: { username: 'ASC' },
-    });
-  }
-
-  private async getMutualFollowUsers(currentUserId: string) {
-    const rows: { userId: string }[] = await this.followsRepository
-      .createQueryBuilder('f1')
-      .innerJoin(
-        Follow,
-        'f2',
-        'f1.followingId = f2.followerId AND f2.followingId = :currentUserId',
-        { currentUserId },
-      )
-      .select('f1.followingId', 'userId')
-      .where('f1.followerId = :currentUserId', { currentUserId })
-      .andWhere('f1.followingId <> :currentUserId', { currentUserId })
-      .getRawMany();
-
-    const mutualIds = Array.from(new Set(rows.map((row) => row.userId)));
-    if (mutualIds.length === 0) return [];
-
-    return this.usersRepository.find({
-      where: { id: In(mutualIds) },
-      select: ['id', 'username', 'displayName', 'avatarUrl'],
-      order: { username: 'ASC' },
-    });
-  }
-
-  private async searchMutualFollowUsers(currentUserId: string, query: string) {
-    const mutualUsers = await this.getMutualFollowUsers(currentUserId);
-    const search = query.toLowerCase();
-    return mutualUsers.filter((user) => {
-      const usernameMatch = user.username.toLowerCase().includes(search);
-      const displayNameMatch = (user.displayName ?? '')
-        .toLowerCase()
-        .includes(search);
-      return usernameMatch || displayNameMatch;
     });
   }
 

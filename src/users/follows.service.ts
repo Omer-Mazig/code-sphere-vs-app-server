@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -8,11 +8,20 @@ import { UsersService } from './users.service';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 
+export type MutualFollowUser = {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+};
+
 @Injectable()
 export class FollowsService {
   constructor(
     @InjectRepository(Follow)
     private readonly followsRepository: Repository<Follow>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -108,6 +117,55 @@ export class FollowsService {
     return !!follow;
   }
 
+  async getMutualFollowUsers(
+    currentUserId: string,
+  ): Promise<MutualFollowUser[]> {
+    const rows: { userId: string }[] = await this.followsRepository
+      .createQueryBuilder('f1')
+      .innerJoin(
+        Follow,
+        'f2',
+        'f1.followingId = f2.followerId AND f2.followingId = :currentUserId',
+        { currentUserId },
+      )
+      .select('f1.followingId', 'userId')
+      .where('f1.followerId = :currentUserId', { currentUserId })
+      .andWhere('f1.followingId <> :currentUserId', { currentUserId })
+      .getRawMany();
+
+    const mutualIds = Array.from(new Set(rows.map((row) => row.userId)));
+    if (mutualIds.length === 0) return [];
+
+    const users = await this.usersRepository.find({
+      where: { id: In(mutualIds) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+      order: { username: 'ASC' },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+    }));
+  }
+
+  async searchMutualFollowUsers(
+    currentUserId: string,
+    query: string,
+  ): Promise<MutualFollowUser[]> {
+    const mutualUsers = await this.getMutualFollowUsers(currentUserId);
+    const search = query.toLowerCase();
+
+    return mutualUsers.filter((user) => {
+      const usernameMatch = user.username.toLowerCase().includes(search);
+      const displayNameMatch = (user.displayName ?? '')
+        .toLowerCase()
+        .includes(search);
+      return usernameMatch || displayNameMatch;
+    });
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────
 
   private async getPaginatedFollowUsers(
@@ -120,8 +178,7 @@ export class FollowsService {
 
     // "follower" → people who follow targetUserId → filter by followingId
     // "following" → people targetUserId follows → filter by followerId
-    const whereColumn =
-      relation === 'follower' ? 'followingId' : 'followerId';
+    const whereColumn = relation === 'follower' ? 'followingId' : 'followerId';
 
     const [follows, total] = await this.followsRepository
       .createQueryBuilder('follow')
