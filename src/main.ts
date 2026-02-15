@@ -20,8 +20,6 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use(
     helmet({
-      // Disable CSP in development to avoid breaking the frontend during local dev.
-      // Configure a proper Content-Security-Policy for production when domains are finalized.
       contentSecurityPolicy:
         process.env.NODE_ENV === 'production' ? undefined : false,
     }),
