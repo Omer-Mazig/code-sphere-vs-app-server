@@ -17,7 +17,10 @@ export class UpdateArticleDto {
   @MaxLength(200)
   title?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'object', additionalProperties: true },
+  })
   @IsOptional()
   @IsArray()
   content?: Record<string, unknown>[];

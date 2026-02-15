@@ -8,12 +8,19 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
+import { PostDeletedResponseDto, PostResponseDto } from './dto/post-response.dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
+import {
+  ApiEnvelopeCreatedResponse,
+  ApiEnvelopeOkResponse,
+  ApiEnvelopePaginatedOkResponse,
+  ApiStandardErrorResponses,
+} from '../common/swagger';
 
 @ApiTags('Posts')
 @Controller('posts')
@@ -23,6 +30,8 @@ export class PostsController {
   @Get()
   @Public()
   @Paginated()
+  @ApiEnvelopePaginatedOkResponse(PostResponseDto)
+  @ApiStandardErrorResponses()
   getFeed(
     @Query() query: PostQueryDto,
     @CurrentUser() currentUserId: string,
@@ -32,6 +41,9 @@ export class PostsController {
 
   @Get(':id')
   @Public()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(PostResponseDto)
+  @ApiStandardErrorResponses()
   getById(
     @Param('id') id: string,
     @CurrentUser() currentUserId: string,
@@ -40,6 +52,8 @@ export class PostsController {
   }
 
   @Post()
+  @ApiEnvelopeCreatedResponse(PostResponseDto)
+  @ApiStandardErrorResponses()
   create(
     @CurrentUser() userId: string,
     @Body() dto: CreatePostDto,
@@ -48,6 +62,9 @@ export class PostsController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(PostResponseDto)
+  @ApiStandardErrorResponses()
   update(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -57,6 +74,9 @@ export class PostsController {
   }
 
   @Delete(':id')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(PostDeletedResponseDto)
+  @ApiStandardErrorResponses()
   delete(
     @Param('id') id: string,
     @CurrentUser() userId: string,

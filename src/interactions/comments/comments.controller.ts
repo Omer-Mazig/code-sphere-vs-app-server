@@ -8,16 +8,26 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto';
 import { CurrentUser, Paginated, Public } from '../../common/decorators';
 import {
+  CommentDeletedResponseDto,
+  CommentMentionCandidateResponseDto,
+  CommentResponseDto,
   CommentMentionCandidatesQueryDto,
   CreateCommentDto,
   InteractionQueryDto,
   UpdateCommentDto,
 } from '../dto';
 import { CommentsService } from './comments.service';
+import {
+  ApiEnvelopeArrayOkResponse,
+  ApiEnvelopeCreatedResponse,
+  ApiEnvelopeOkResponse,
+  ApiEnvelopePaginatedOkResponse,
+  ApiStandardErrorResponses,
+} from '../../common/swagger';
 
 @ApiTags('Interactions')
 @Controller('interactions/comments')
@@ -27,6 +37,8 @@ export class CommentsController {
   @Get()
   @Public()
   @Paginated()
+  @ApiEnvelopePaginatedOkResponse(CommentResponseDto)
+  @ApiStandardErrorResponses()
   getComments(
     @Query() query: InteractionQueryDto,
     @CurrentUser() currentUserId: string,
@@ -37,6 +49,9 @@ export class CommentsController {
   @Get(':id/replies')
   @Public()
   @Paginated()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopePaginatedOkResponse(CommentResponseDto)
+  @ApiStandardErrorResponses()
   getCommentReplies(
     @Param('id') commentId: string,
     @Query() query: PaginationQueryDto,
@@ -46,12 +61,16 @@ export class CommentsController {
   }
 
   @Post()
+  @ApiEnvelopeCreatedResponse(CommentResponseDto)
+  @ApiStandardErrorResponses()
   addComment(@CurrentUser() userId: string, @Body() dto: CreateCommentDto) {
     return this.commentsService.addComment(userId, dto);
   }
 
   @Get('mention-candidates')
   @Public()
+  @ApiEnvelopeArrayOkResponse(CommentMentionCandidateResponseDto)
+  @ApiStandardErrorResponses()
   getCommentMentionCandidates(
     @CurrentUser() currentUserId: string,
     @Query() query: CommentMentionCandidatesQueryDto,
@@ -65,6 +84,9 @@ export class CommentsController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(CommentResponseDto)
+  @ApiStandardErrorResponses()
   updateComment(
     @Param('id') id: string,
     @CurrentUser() userId: string,
@@ -74,6 +96,9 @@ export class CommentsController {
   }
 
   @Delete(':id')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(CommentDeletedResponseDto)
+  @ApiStandardErrorResponses()
   deleteComment(@Param('id') id: string, @CurrentUser() userId: string) {
     return this.commentsService.deleteComment(id, userId);
   }

@@ -20,6 +20,8 @@ export class CreateArticleDto {
     example: [
       { type: 'paragraph', content: 'This is the article body...' },
     ],
+    type: 'array',
+    items: { type: 'object', additionalProperties: true },
   })
   @IsArray()
   content: Record<string, unknown>[];

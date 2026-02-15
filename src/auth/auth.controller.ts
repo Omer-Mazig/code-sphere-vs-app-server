@@ -5,6 +5,12 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators';
+import {
+  ApiEnvelopeCreatedResponse,
+  ApiEnvelopeOkResponse,
+  ApiStandardErrorResponses,
+} from '../common/swagger';
+import { AuthSessionResponseDto, LogoutResponseDto } from './dto/auth-response.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -14,6 +20,8 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(200)
+  @ApiEnvelopeOkResponse(AuthSessionResponseDto)
+  @ApiStandardErrorResponses()
   async login(
     @Body() payload: LoginDto,
     @Req() req: Request,
@@ -34,6 +42,8 @@ export class AuthController {
 
   @Post('register')
   @Public()
+  @ApiEnvelopeCreatedResponse(AuthSessionResponseDto)
+  @ApiStandardErrorResponses()
   async register(
     @Body() payload: RegisterDto,
     @Req() req: Request,
@@ -55,6 +65,8 @@ export class AuthController {
   @Post('refresh')
   @Public()
   @HttpCode(200)
+  @ApiEnvelopeOkResponse(AuthSessionResponseDto)
+  @ApiStandardErrorResponses()
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -78,6 +90,8 @@ export class AuthController {
   @Post('logout')
   @Public()
   @HttpCode(200)
+  @ApiEnvelopeOkResponse(LogoutResponseDto)
+  @ApiStandardErrorResponses()
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,

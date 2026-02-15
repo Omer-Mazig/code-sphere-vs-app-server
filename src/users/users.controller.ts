@@ -8,12 +8,22 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProfilesService } from './profiles.service';
 import { FollowsService } from './follows.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
+import {
+  FollowActionResponseDto,
+  FollowUserResponseDto,
+  UserProfileResponseDto,
+} from './dto/user-response.dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
+import {
+  ApiEnvelopeOkResponse,
+  ApiEnvelopePaginatedOkResponse,
+  ApiStandardErrorResponses,
+} from '../common/swagger';
 
 @ApiTags('Users')
 @Controller('users')
@@ -26,12 +36,17 @@ export class UsersController {
   // ── Profile ────────────────────────────────────────────────────────
 
   @Get('me')
+  @ApiEnvelopeOkResponse(UserProfileResponseDto)
+  @ApiStandardErrorResponses()
   getMyProfile(@CurrentUser() currentUserId: string) {
     return this.profilesService.getMyProfile(currentUserId);
   }
 
   @Get(':id')
   @Public()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(UserProfileResponseDto)
+  @ApiStandardErrorResponses()
   getProfile(
     @Param('id') targetUserId: string,
     @CurrentUser() currentUserId: string,
@@ -40,6 +55,8 @@ export class UsersController {
   }
 
   @Patch('me')
+  @ApiEnvelopeOkResponse(UserProfileResponseDto)
+  @ApiStandardErrorResponses()
   updateMyProfile(
     @CurrentUser() currentUserId: string,
     @Body() dto: UpdateProfileDto,
@@ -50,6 +67,9 @@ export class UsersController {
   // ── Follow ─────────────────────────────────────────────────────────
 
   @Post(':id/follow')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(FollowActionResponseDto)
+  @ApiStandardErrorResponses()
   followUser(
     @CurrentUser() currentUserId: string,
     @Param('id') targetUserId: string,
@@ -58,6 +78,9 @@ export class UsersController {
   }
 
   @Delete(':id/follow')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(FollowActionResponseDto)
+  @ApiStandardErrorResponses()
   unfollowUser(
     @CurrentUser() currentUserId: string,
     @Param('id') targetUserId: string,
@@ -70,6 +93,9 @@ export class UsersController {
   @Get(':id/followers')
   @Public()
   @Paginated()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopePaginatedOkResponse(FollowUserResponseDto)
+  @ApiStandardErrorResponses()
   getFollowers(
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
@@ -80,6 +106,9 @@ export class UsersController {
   @Get(':id/following')
   @Public()
   @Paginated()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopePaginatedOkResponse(FollowUserResponseDto)
+  @ApiStandardErrorResponses()
   getFollowing(
     @Param('id') targetUserId: string,
     @Query() query: UserQueryDto,
