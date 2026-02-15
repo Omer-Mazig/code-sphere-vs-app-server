@@ -57,14 +57,21 @@ export class CommentsController {
     @Query() query: PaginationQueryDto,
     @CurrentUser() currentUserId: string,
   ) {
-    return this.commentsService.getCommentReplies(commentId, query, currentUserId);
+    return this.commentsService.getCommentReplies(
+      commentId,
+      query,
+      currentUserId,
+    );
   }
 
   @Post()
   @ApiEnvelopeCreatedResponse(CommentResponseDto)
   @ApiStandardErrorResponses()
-  addComment(@CurrentUser() userId: string, @Body() dto: CreateCommentDto) {
-    return this.commentsService.addComment(userId, dto);
+  addComment(
+    @CurrentUser() currentUserId: string,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.commentsService.addComment(currentUserId, dto);
   }
 
   @Get('mention-candidates')
@@ -89,17 +96,17 @@ export class CommentsController {
   @ApiStandardErrorResponses()
   updateComment(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Body() dto: UpdateCommentDto,
   ) {
-    return this.commentsService.updateComment(id, userId, dto);
+    return this.commentsService.updateComment(id, currentUserId, dto);
   }
 
   @Delete(':id')
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(CommentDeletedResponseDto)
   @ApiStandardErrorResponses()
-  deleteComment(@Param('id') id: string, @CurrentUser() userId: string) {
-    return this.commentsService.deleteComment(id, userId);
+  deleteComment(@Param('id') id: string, @CurrentUser() currentUserId: string) {
+    return this.commentsService.deleteComment(id, currentUserId);
   }
 }

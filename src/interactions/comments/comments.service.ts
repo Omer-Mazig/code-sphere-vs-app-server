@@ -30,7 +30,7 @@ export class CommentsService {
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
   ) {}
 
-  async addComment(authorId: string, dto: CreateCommentDto) {
+  async addComment(currentUserId: string, dto: CreateCommentDto) {
     this.interactionTargetValidatorService.assertCommentTargetType(
       dto.targetType,
     );
@@ -48,7 +48,7 @@ export class CommentsService {
     }
 
     await this.validateMentionsForContext(
-      authorId,
+      currentUserId,
       dto.parentId,
       dto.targetId,
       dto.targetType,
@@ -56,7 +56,7 @@ export class CommentsService {
     );
 
     const comment = this.commentsRepository.create({
-      authorId,
+      authorId: currentUserId,
       targetId: dto.targetId,
       targetType: dto.targetType,
       content: dto.content,
@@ -66,12 +66,12 @@ export class CommentsService {
     await this.commentsRepository.save(comment);
 
     // TODO: trigger mention notifications here (notify mentioned users with author context).
-    return this.getCommentById(comment.id, authorId);
+    return this.getCommentById(comment.id, currentUserId);
   }
 
   async updateComment(
     commentId: string,
-    userId: string,
+    currentUserId: string,
     dto: UpdateCommentDto,
   ) {
     const comment = await this.commentsRepository.findOne({
@@ -87,17 +87,17 @@ export class CommentsService {
       );
     }
 
-    if (comment.authorId !== userId) {
+    if (comment.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.COMMENT_UPDATE_FORBIDDEN,
-        `User "${userId}" cannot update comment "${commentId}" of author "${comment.authorId}"`,
+        `User "${currentUserId}" cannot update comment "${commentId}" of author "${comment.authorId}"`,
         'You can only edit your own comments',
         HttpStatus.FORBIDDEN,
       );
     }
 
     await this.validateMentionsForContext(
-      userId,
+      currentUserId,
       comment.parentId ?? undefined,
       comment.targetId,
       comment.targetType,
@@ -107,10 +107,10 @@ export class CommentsService {
     comment.content = dto.content;
     await this.commentsRepository.save(comment);
 
-    return this.getCommentById(comment.id, userId);
+    return this.getCommentById(comment.id, currentUserId);
   }
 
-  async deleteComment(commentId: string, userId: string) {
+  async deleteComment(commentId: string, currentUserId: string) {
     const comment = await this.commentsRepository.findOne({
       where: { id: commentId },
     });
@@ -124,10 +124,10 @@ export class CommentsService {
       );
     }
 
-    if (comment.authorId !== userId) {
+    if (comment.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.COMMENT_DELETE_FORBIDDEN,
-        `User "${userId}" cannot delete comment "${commentId}" of author "${comment.authorId}"`,
+        `User "${currentUserId}" cannot delete comment "${commentId}" of author "${comment.authorId}"`,
         'You can only delete your own comments',
         HttpStatus.FORBIDDEN,
       );
