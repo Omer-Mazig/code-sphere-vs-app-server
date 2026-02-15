@@ -5,15 +5,17 @@ import { Comment } from '../entities/comment.entity';
 import { Like, TargetType } from '../entities/like.entity';
 import { User } from '../../users/entities/user.entity';
 import { FollowsService } from '../../users/follows.service';
-import { CreateCommentDto, InteractionQueryDto, UpdateCommentDto } from '../dto';
+import {
+  CreateCommentDto,
+  InteractionQueryDto,
+  UpdateCommentDto,
+} from '../dto';
 import { PaginationQueryDto } from '../../common/dto';
 import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { InteractionTargetValidatorService } from '../shared';
 
 const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
-const MENTION_CANDIDATES_POOL_LIMIT = 150;
-const MENTION_CANDIDATES_SEARCH_LIMIT = 50;
 
 @Injectable()
 export class CommentsService {
@@ -29,46 +31,20 @@ export class CommentsService {
   ) {}
 
   async addComment(authorId: string, dto: CreateCommentDto) {
-    this.interactionTargetValidatorService.assertCommentTargetType(dto.targetType);
+    this.interactionTargetValidatorService.assertCommentTargetType(
+      dto.targetType,
+    );
     await this.interactionTargetValidatorService.ensureTargetExists(
       dto.targetId,
       dto.targetType,
     );
 
     if (dto.parentId) {
-      const parent = await this.commentsRepository.findOne({
-        where: { id: dto.parentId },
-      });
-
-      if (!parent) {
-        throw new BusinessException(
-          ErrorCode.COMMENT_PARENT_INVALID,
-          `Parent comment "${dto.parentId}" not found`,
-          'Invalid parent comment',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      if (
-        parent.targetId !== dto.targetId ||
-        parent.targetType !== dto.targetType
-      ) {
-        throw new BusinessException(
-          ErrorCode.COMMENT_PARENT_INVALID,
-          `Parent comment "${dto.parentId}" target mismatch`,
-          'Invalid parent comment',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      if (parent.parentId) {
-        throw new BusinessException(
-          ErrorCode.COMMENT_PARENT_INVALID,
-          `Parent comment "${dto.parentId}" is already a reply`,
-          'You can only reply to top-level comments',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      await this.validateParentComment(
+        dto.parentId,
+        dto.targetId,
+        dto.targetType,
+      );
     }
 
     await this.validateMentionsForContext(
@@ -93,7 +69,11 @@ export class CommentsService {
     return this.getCommentById(comment.id, authorId);
   }
 
-  async updateComment(commentId: string, userId: string, dto: UpdateCommentDto) {
+  async updateComment(
+    commentId: string,
+    userId: string,
+    dto: UpdateCommentDto,
+  ) {
     const comment = await this.commentsRepository.findOne({
       where: { id: commentId },
     });
@@ -102,7 +82,7 @@ export class CommentsService {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
         `Comment with id "${commentId}" not found`,
-        'Comment not found',
+        'Cannot update comment that does not exist. It may have been deleted.',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -110,7 +90,7 @@ export class CommentsService {
     if (comment.authorId !== userId) {
       throw new BusinessException(
         ErrorCode.COMMENT_UPDATE_FORBIDDEN,
-        `User "${userId}" cannot update comment "${commentId}"`,
+        `User "${userId}" cannot update comment "${commentId}" of author "${comment.authorId}"`,
         'You can only edit your own comments',
         HttpStatus.FORBIDDEN,
       );
@@ -139,7 +119,7 @@ export class CommentsService {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
         `Comment with id "${commentId}" not found`,
-        'Comment not found',
+        'Cannot delete comment that does not exist. It may have been deleted.',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -147,7 +127,7 @@ export class CommentsService {
     if (comment.authorId !== userId) {
       throw new BusinessException(
         ErrorCode.COMMENT_DELETE_FORBIDDEN,
-        `User "${userId}" cannot delete comment "${commentId}"`,
+        `User "${userId}" cannot delete comment "${commentId}" of author "${comment.authorId}"`,
         'You can only delete your own comments',
         HttpStatus.FORBIDDEN,
       );
@@ -159,7 +139,9 @@ export class CommentsService {
   }
 
   async getComments(query: InteractionQueryDto, currentUserId?: string) {
-    this.interactionTargetValidatorService.assertCommentTargetType(query.targetType);
+    this.interactionTargetValidatorService.assertCommentTargetType(
+      query.targetType,
+    );
 
     const { page, limit, targetId, targetType, parentId } = query;
     const skip = (page - 1) * limit;
@@ -199,9 +181,9 @@ export class CommentsService {
     if (!parent) {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
-        `Comment with id "${commentId}" not found`,
-        'Comment not found',
-        HttpStatus.NOT_FOUND,
+        `Comment with id "${commentId}" not found.`,
+        'This thread does not exist. It may have been deleted.',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -227,7 +209,7 @@ export class CommentsService {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
         `Comment with id "${commentId}" not found`,
-        'Comment not found',
+        'Comment not found. It may have been deleted.',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -282,12 +264,7 @@ export class CommentsService {
       });
     }
 
-    return Array.from(mergedMap.values()).slice(
-      0,
-      normalizedQuery
-        ? MENTION_CANDIDATES_SEARCH_LIMIT
-        : MENTION_CANDIDATES_POOL_LIMIT,
-    );
+    return Array.from(mergedMap.values());
   }
 
   private formatComment(comment: Comment) {
@@ -411,9 +388,8 @@ export class CommentsService {
       }
     }
 
-    const mutualUsers = await this.followsService.getMutualFollowUsers(
-      currentUserId,
-    );
+    const mutualUsers =
+      await this.followsService.getMutualFollowUsers(currentUserId);
     for (const user of mutualUsers) {
       allowedUserIds.add(user.id);
     }
@@ -442,6 +418,43 @@ export class CommentsService {
     }
   }
 
+  async validateParentComment(
+    parentId: string,
+    targetId: string,
+    targetType: TargetType,
+  ) {
+    const parent = await this.commentsRepository.findOne({
+      where: { id: parentId },
+    });
+
+    if (!parent) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" not found`,
+        'This thread does not exist. It may have been deleted.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (parent.targetId !== targetId || parent.targetType !== targetType) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" target mismatch`,
+        'This thread is not related to the target post.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (parent.parentId) {
+      throw new BusinessException(
+        ErrorCode.COMMENT_PARENT_INVALID,
+        `Parent comment "${parentId}" is already a reply`,
+        'You can only reply to top-level comments',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   private async getThreadMentionUsers(targetId: string, parentId: string) {
     const parent = await this.commentsRepository.findOne({
       where: { id: parentId },
@@ -451,7 +464,7 @@ export class CommentsService {
       throw new BusinessException(
         ErrorCode.COMMENT_PARENT_INVALID,
         `Parent comment "${parentId}" not found`,
-        'Invalid parent comment',
+        'This thread does not exist. It may have been deleted.',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -460,16 +473,17 @@ export class CommentsService {
       throw new BusinessException(
         ErrorCode.COMMENT_PARENT_INVALID,
         `Parent comment "${parentId}" target mismatch`,
-        'Invalid parent comment',
+        'This thread is not related to the target post.',
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    const replyAuthorRows: { authorId: string }[] = await this.commentsRepository
-      .createQueryBuilder('comment')
-      .select('DISTINCT comment.authorId', 'authorId')
-      .where('comment.parentId = :parentId', { parentId })
-      .getRawMany();
+    const replyAuthorRows: { authorId: string }[] =
+      await this.commentsRepository
+        .createQueryBuilder('comment')
+        .select('DISTINCT comment.authorId', 'authorId')
+        .where('comment.parentId = :parentId', { parentId })
+        .getRawMany();
 
     const allowedIds = Array.from(
       new Set([parent.authorId, ...replyAuthorRows.map((row) => row.authorId)]),
