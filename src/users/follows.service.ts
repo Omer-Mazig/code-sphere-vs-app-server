@@ -158,10 +158,10 @@ export class FollowsService {
     const search = query.toLowerCase();
 
     return mutualUsers.filter((user) => {
-      const usernameMatch = user.username.toLowerCase().includes(search);
+      const usernameMatch = user.username.toLowerCase().startsWith(search);
       const displayNameMatch = (user.displayName ?? '')
         .toLowerCase()
-        .includes(search);
+        .startsWith(search);
       return usernameMatch || displayNameMatch;
     });
   }

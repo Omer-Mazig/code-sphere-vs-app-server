@@ -4,6 +4,7 @@ import { In, IsNull, Repository } from 'typeorm';
 import { Comment } from '../entities/comment.entity';
 import { Like, TargetType } from '../entities/like.entity';
 import { User } from '../../users/entities/user.entity';
+import { Post } from '../../posts/entities/post.entity';
 import { FollowsService } from '../../users/follows.service';
 import {
   CreateCommentDto,
@@ -26,6 +27,8 @@ export class CommentsService {
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Post)
+    private readonly postsRepository: Repository<Post>,
     private readonly followsService: FollowsService,
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
   ) {}
@@ -232,10 +235,15 @@ export class CommentsService {
       TargetType.POST,
     );
 
-    const normalizedQuery = query?.trim();
-    const threadCandidates = parentId
-      ? await this.getThreadMentionUsers(targetId, parentId)
-      : [];
+    const normalizedQuery = query?.trim().toLowerCase();
+
+    // Tier A: contextual candidates (post author + thread participants)
+    const contextualCandidates = await this.getContextualMentionUsers(
+      targetId,
+      parentId,
+    );
+
+    // Tier B: mutual follow users (only when query is provided)
     const mutualCandidates =
       currentUserId && normalizedQuery
         ? await this.followsService.searchMutualFollowUsers(
@@ -244,6 +252,7 @@ export class CommentsService {
           )
         : [];
 
+    // Merge and deduplicate (contextual first for stable ordering)
     const mergedMap = new Map<
       string,
       {
@@ -254,7 +263,7 @@ export class CommentsService {
       }
     >();
 
-    for (const user of [...threadCandidates, ...mutualCandidates]) {
+    for (const user of contextualCandidates) {
       if (!user?.id) continue;
       mergedMap.set(user.id, {
         id: user.id,
@@ -264,7 +273,37 @@ export class CommentsService {
       });
     }
 
-    return Array.from(mergedMap.values());
+    for (const user of mutualCandidates) {
+      if (!user?.id || mergedMap.has(user.id)) continue;
+      mergedMap.set(user.id, {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      });
+    }
+
+    // Exclude the current user
+    if (currentUserId) {
+      mergedMap.delete(currentUserId);
+    }
+
+    let results = Array.from(mergedMap.values());
+
+    // Prefix-filter all candidates when a query is provided
+    if (normalizedQuery) {
+      results = results.filter((user) => {
+        const usernameMatch = user.username
+          .toLowerCase()
+          .startsWith(normalizedQuery);
+        const displayNameMatch = (user.displayName ?? '')
+          .toLowerCase()
+          .startsWith(normalizedQuery);
+        return usernameMatch || displayNameMatch;
+      });
+    }
+
+    return results;
   }
 
   private formatComment(comment: Comment) {
@@ -381,6 +420,16 @@ export class CommentsService {
     }
 
     const allowedUserIds = new Set<string>();
+
+    // Post author is always allowed
+    const post = await this.postsRepository.findOne({
+      where: { id: targetId },
+      select: ['id', 'authorId'],
+    });
+    if (post) {
+      allowedUserIds.add(post.authorId);
+    }
+
     if (parentId) {
       const threadUsers = await this.getThreadMentionUsers(targetId, parentId);
       for (const user of threadUsers) {
@@ -453,6 +502,53 @@ export class CommentsService {
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  private async getContextualMentionUsers(
+    targetId: string,
+    parentId?: string,
+  ) {
+    const userIds = new Set<string>();
+
+    // Always include the post author
+    const post = await this.postsRepository.findOne({
+      where: { id: targetId },
+      select: ['id', 'authorId'],
+    });
+    if (post) {
+      userIds.add(post.authorId);
+    }
+
+    // If reply, include parent comment author + sibling reply authors
+    if (parentId) {
+      const parent = await this.commentsRepository.findOne({
+        where: { id: parentId, targetId, targetType: TargetType.POST },
+      });
+
+      if (parent) {
+        userIds.add(parent.authorId);
+
+        const replyAuthorRows: { authorId: string }[] =
+          await this.commentsRepository
+            .createQueryBuilder('comment')
+            .select('DISTINCT comment.authorId', 'authorId')
+            .where('comment.parentId = :parentId', { parentId })
+            .getRawMany();
+
+        for (const row of replyAuthorRows) {
+          userIds.add(row.authorId);
+        }
+      }
+    }
+
+    const ids = Array.from(userIds);
+    if (ids.length === 0) return [];
+
+    return this.usersRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+      order: { username: 'ASC' },
+    });
   }
 
   private async getThreadMentionUsers(targetId: string, parentId: string) {
