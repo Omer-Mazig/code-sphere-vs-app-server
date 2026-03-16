@@ -10,7 +10,9 @@ import { NotificationsListener } from './notifications.listener';
 import { NotificationsService } from './notifications.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification, User, Post, Comment, Article])],
+  imports: [
+    TypeOrmModule.forFeature([Notification, User, Post, Comment, Article]),
+  ],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationsListener],
   exports: [NotificationsService],

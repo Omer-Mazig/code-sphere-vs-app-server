@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
-import { NotificationTargetType, NotificationType } from '../notifications.entity';
+import {
+  NotificationTargetType,
+  NotificationType,
+} from '../notifications.entity';
 
 export class NotificationPayloadDto {
   [key: string]: unknown;
