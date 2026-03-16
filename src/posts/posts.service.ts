@@ -107,11 +107,10 @@ export class PostsService {
     }
 
     const formatted = this.formatPost(post);
-    const [withLikes] = await this.enrichWithLikes(
-      [formatted],
-      currentUserId,
-    );
-    const [withCommentPreview] = await this.enrichWithCommentPreview([withLikes]);
+    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withCommentPreview] = await this.enrichWithCommentPreview([
+      withLikes,
+    ]);
     return withCommentPreview;
   }
 

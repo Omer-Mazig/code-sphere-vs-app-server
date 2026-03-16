@@ -284,7 +284,7 @@ export class AuthService {
     try {
       return this.jwtService.verify(token, {
         secret: this.accessTokenSecret,
-      }) as AuthPayload;
+      });
     } catch {
       return null;
     }
@@ -393,10 +393,7 @@ export class AuthService {
     try {
       return this.jwtService.verify(token, {
         secret: this.refreshTokenSecret,
-      }) as {
-        sub: string;
-        tokenId: string;
-      };
+      });
     } catch {
       return null;
     }

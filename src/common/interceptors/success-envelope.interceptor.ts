@@ -27,6 +27,12 @@ export class SuccessEnvelopeInterceptor implements NestInterceptor {
     next: CallHandler,
   ): Observable<SuccessEnvelope> {
     const request = context.switchToHttp().getRequest<RequestWithContext>();
+    const accept = request.headers?.accept;
+
+    // SSE streams must keep native event payload shape.
+    if (typeof accept === 'string' && accept.includes('text/event-stream')) {
+      return next.handle() as Observable<SuccessEnvelope>;
+    }
 
     return next.handle().pipe(
       map((data: unknown) => {

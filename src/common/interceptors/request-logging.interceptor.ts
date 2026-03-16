@@ -16,13 +16,17 @@ export class RequestLoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const http = context.switchToHttp();
-    const request = http.getRequest<RequestWithContext & { user?: { id: string } }>();
+    const request = http.getRequest<
+      RequestWithContext & { user?: { id: string } }
+    >();
     const response = http.getResponse<Response>();
 
     response.on('finish', () => {
       const requestId = request.requestId ?? '-';
       const durationMs =
-        request._startTime != null ? Date.now() - request._startTime : undefined;
+        request._startTime != null
+          ? Date.now() - request._startTime
+          : undefined;
       const userId = request.user?.id;
 
       this.logger.log({

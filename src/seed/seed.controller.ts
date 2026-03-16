@@ -6,7 +6,10 @@ import {
   ApiEnvelopeOkResponse,
   ApiStandardErrorResponses,
 } from '../common/swagger';
-import { SeedClearResponseDto, SeedRunResponseDto } from './dto/seed-response.dto';
+import {
+  SeedClearResponseDto,
+  SeedRunResponseDto,
+} from './dto/seed-response.dto';
 
 @ApiTags('Seed')
 @Controller('dev/seed')

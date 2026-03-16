@@ -35,10 +35,7 @@ export class ArticlesController {
   @Paginated()
   @ApiEnvelopePaginatedOkResponse(ArticleResponseDto)
   @ApiStandardErrorResponses()
-  list(
-    @Query() query: ArticleQueryDto,
-    @CurrentUser() currentUserId: string,
-  ) {
+  list(@Query() query: ArticleQueryDto, @CurrentUser() currentUserId: string) {
     return this.articlesService.list(query, currentUserId);
   }
 
@@ -47,20 +44,14 @@ export class ArticlesController {
   @ApiParam({ name: 'slug', type: String })
   @ApiEnvelopeOkResponse(ArticleResponseDto)
   @ApiStandardErrorResponses()
-  getBySlug(
-    @Param('slug') slug: string,
-    @CurrentUser() currentUserId: string,
-  ) {
+  getBySlug(@Param('slug') slug: string, @CurrentUser() currentUserId: string) {
     return this.articlesService.getBySlug(slug, currentUserId);
   }
 
   @Post()
   @ApiEnvelopeCreatedResponse(ArticleResponseDto)
   @ApiStandardErrorResponses()
-  create(
-    @CurrentUser() userId: string,
-    @Body() dto: CreateArticleDto,
-  ) {
+  create(@CurrentUser() userId: string, @Body() dto: CreateArticleDto) {
     return this.articlesService.create(userId, dto);
   }
 
@@ -80,10 +71,7 @@ export class ArticlesController {
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(ArticleDeletedResponseDto)
   @ApiStandardErrorResponses()
-  delete(
-    @Param('id') id: string,
-    @CurrentUser() userId: string,
-  ) {
+  delete(@Param('id') id: string, @CurrentUser() userId: string) {
     return this.articlesService.delete(id, userId);
   }
 }

@@ -11,7 +11,10 @@ import { CommentsService } from './comments.service';
 import { InteractionTargetValidatorService } from '../shared';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Comment, Like, User, Post, Article]), UsersModule],
+  imports: [
+    TypeOrmModule.forFeature([Comment, Like, User, Post, Article]),
+    UsersModule,
+  ],
   controllers: [CommentsController],
   providers: [CommentsService, InteractionTargetValidatorService],
   exports: [CommentsService],

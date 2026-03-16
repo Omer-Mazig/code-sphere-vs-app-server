@@ -32,7 +32,9 @@ export class InteractionTargetValidatorService {
 
   async ensureTargetExists(targetId: string, targetType: TargetType) {
     if (targetType === TargetType.POST) {
-      const post = await this.postsRepository.findOne({ where: { id: targetId } });
+      const post = await this.postsRepository.findOne({
+        where: { id: targetId },
+      });
       if (!post) {
         throw new BusinessException(
           ErrorCode.POST_NOT_FOUND,

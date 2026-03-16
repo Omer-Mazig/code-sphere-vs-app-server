@@ -1,10 +1,12 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { Like, TargetType } from '../entities/like.entity';
 import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { InteractionTargetValidatorService } from '../shared';
+import { NotificationDomainEventName } from '../../notifications/events/notification-domain-events';
 
 @Injectable()
 export class LikesService {
@@ -12,6 +14,7 @@ export class LikesService {
     @InjectRepository(Like)
     private readonly likesRepository: Repository<Like>,
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async like(userId: string, targetId: string, targetType: TargetType) {
@@ -40,6 +43,13 @@ export class LikesService {
     });
 
     await this.likesRepository.save(like);
+
+    if (targetType === TargetType.POST) {
+      this.eventEmitter.emit(NotificationDomainEventName.POST_LIKED, {
+        postId: targetId,
+        likerId: userId,
+      });
+    }
 
     return { message: 'Liked successfully' };
   }

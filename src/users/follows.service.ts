@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
@@ -7,6 +8,7 @@ import { UserQueryDto } from './dto/user-query.dto';
 import { UsersService } from './users.service';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
 
 export type MutualFollowUser = {
   id: string;
@@ -23,6 +25,7 @@ export class FollowsService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly usersService: UsersService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ── Commands ───────────────────────────────────────────────────────
@@ -58,6 +61,11 @@ export class FollowsService {
     });
 
     await this.followsRepository.save(follow);
+
+    this.eventEmitter.emit(NotificationDomainEventName.USER_FOLLOWED, {
+      followerId: currentUserId,
+      followeeId: targetUserId,
+    });
 
     return { message: 'Followed successfully' };
   }

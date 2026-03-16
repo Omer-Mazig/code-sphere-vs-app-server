@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, IsNull, Repository } from 'typeorm';
 import { Comment } from '../entities/comment.entity';
 import { Like, TargetType } from '../entities/like.entity';
@@ -15,6 +16,7 @@ import { PaginationQueryDto } from '../../common/dto';
 import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { InteractionTargetValidatorService } from '../shared';
+import { NotificationDomainEventName } from '../../notifications/events/notification-domain-events';
 
 const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
 
@@ -31,6 +33,7 @@ export class CommentsService {
     private readonly postsRepository: Repository<Post>,
     private readonly followsService: FollowsService,
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async addComment(currentUserId: string, dto: CreateCommentDto) {
@@ -67,6 +70,22 @@ export class CommentsService {
     });
 
     await this.commentsRepository.save(comment);
+
+    if (dto.parentId) {
+      this.eventEmitter.emit(NotificationDomainEventName.COMMENT_REPLIED, {
+        targetId: dto.targetId,
+        targetType: dto.targetType,
+        parentCommentId: dto.parentId,
+        replyCommentId: comment.id,
+        replierId: currentUserId,
+      });
+    } else if (dto.targetType === TargetType.POST) {
+      this.eventEmitter.emit(NotificationDomainEventName.POST_COMMENTED, {
+        postId: dto.targetId,
+        commentId: comment.id,
+        commenterId: currentUserId,
+      });
+    }
 
     // TODO: trigger mention notifications here (notify mentioned users with author context).
     return this.getCommentById(comment.id, currentUserId);
@@ -504,10 +523,7 @@ export class CommentsService {
     }
   }
 
-  private async getContextualMentionUsers(
-    targetId: string,
-    parentId?: string,
-  ) {
+  private async getContextualMentionUsers(targetId: string, parentId?: string) {
     const userIds = new Set<string>();
 
     // Always include the post author

@@ -3,10 +3,8 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import {
-  DevelopmentWaitMiddleware,
-  RequestContextMiddleware,
-} from './common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { DevelopmentWaitMiddleware, RequestContextMiddleware } from './common';
 import {
   databaseConfig,
   appConfig,
@@ -26,6 +24,7 @@ import { PostsModule } from './posts/posts.module';
 import { ArticlesModule } from './articles/articles.module';
 import { InteractionsModule } from './interactions/interactions.module';
 import { SeedModule } from './seed/seed.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -61,11 +60,13 @@ import { SeedModule } from './seed/seed.module';
         synchronize: true, // Only for development
       }),
     }),
+    EventEmitterModule.forRoot(),
     AuthModule,
     UsersModule,
     PostsModule,
     ArticlesModule,
     InteractionsModule,
+    NotificationsModule,
     SeedModule,
   ],
   controllers: [],

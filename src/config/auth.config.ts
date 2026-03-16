@@ -11,6 +11,5 @@ export const authConfig = registerAs('auth', () => ({
     process.env.JWT_REFRESH_TTL_SECONDS ?? `${60 * 60 * 24 * 30}`,
     10,
   ),
-  refreshCookieName:
-    process.env.REFRESH_TOKEN_COOKIE_NAME ?? 'refresh_token',
+  refreshCookieName: process.env.REFRESH_TOKEN_COOKIE_NAME ?? 'refresh_token',
 }));

@@ -10,7 +10,10 @@ import {
   ApiEnvelopeOkResponse,
   ApiStandardErrorResponses,
 } from '../common/swagger';
-import { AuthSessionResponseDto, LogoutResponseDto } from './dto/auth-response.dto';
+import {
+  AuthSessionResponseDto,
+  LogoutResponseDto,
+} from './dto/auth-response.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -32,7 +35,11 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     });
 
-    this.setRefreshCookie(res, result.refreshToken, result.refreshTokenExpiresAt);
+    this.setRefreshCookie(
+      res,
+      result.refreshToken,
+      result.refreshTokenExpiresAt,
+    );
 
     return {
       user: result.user,
@@ -54,7 +61,11 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     });
 
-    this.setRefreshCookie(res, result.refreshToken, result.refreshTokenExpiresAt);
+    this.setRefreshCookie(
+      res,
+      result.refreshToken,
+      result.refreshTokenExpiresAt,
+    );
 
     return {
       user: result.user,
@@ -79,7 +90,11 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     });
 
-    this.setRefreshCookie(res, result.refreshToken, result.refreshTokenExpiresAt);
+    this.setRefreshCookie(
+      res,
+      result.refreshToken,
+      result.refreshTokenExpiresAt,
+    );
 
     return {
       user: result.user,
@@ -92,10 +107,7 @@ export class AuthController {
   @HttpCode(200)
   @ApiEnvelopeOkResponse(LogoutResponseDto)
   @ApiStandardErrorResponses()
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const cookieName = this.authService.getRefreshCookieName();
     const refreshToken = req.cookies?.[cookieName];
 

@@ -139,10 +139,7 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [enriched] = await this.enrichWithLikes(
-      [formatted],
-      currentUserId,
-    );
+    const [enriched] = await this.enrichWithLikes([formatted], currentUserId);
     return enriched;
   }
 
@@ -162,10 +159,7 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [enriched] = await this.enrichWithLikes(
-      [formatted],
-      currentUserId,
-    );
+    const [enriched] = await this.enrichWithLikes([formatted], currentUserId);
     return enriched;
   }
 

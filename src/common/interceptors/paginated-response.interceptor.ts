@@ -32,10 +32,7 @@ function isPaginatedPayload(
 export class PaginatedResponseInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<unknown> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const isPaginated = this.reflector.getAllAndOverride<boolean>(
       PAGINATED_RESPONSE_KEY,
       [context.getHandler(), context.getClass()],
