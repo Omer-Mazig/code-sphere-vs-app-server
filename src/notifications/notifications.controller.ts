@@ -41,6 +41,10 @@ export class NotificationsController {
       userId,
       query.page,
       query.limit,
+      {
+        targetType: query.targetType,
+        isRead: query.isRead,
+      },
     );
   }
 

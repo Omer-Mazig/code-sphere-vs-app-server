@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
-import { NotificationType } from '../notifications.entity';
+import { NotificationTargetType, NotificationType } from '../notifications.entity';
 
 export class NotificationPayloadDto {
   [key: string]: unknown;
@@ -12,6 +12,13 @@ export class NotificationResponseDto {
 
   @ApiProperty({ enum: NotificationType, enumName: 'NotificationType' })
   type!: NotificationType;
+
+  @ApiProperty({
+    enum: NotificationTargetType,
+    enumName: 'NotificationTargetType',
+    nullable: true,
+  })
+  targetType!: NotificationTargetType | null;
 
   @ApiProperty({
     type: 'object',

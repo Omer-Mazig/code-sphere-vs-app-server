@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Article } from '../articles/entities/article.entity';
 import { Comment } from '../interactions/entities/comment.entity';
+import { TargetType } from '../interactions/entities/like.entity';
 import { Post } from '../posts/entities/post.entity';
 import { User } from '../users/entities/user.entity';
 import {
@@ -12,7 +14,10 @@ import {
   PostLikedEvent,
   UserFollowedEvent,
 } from './events/notification-domain-events';
-import { NotificationType } from './notifications.entity';
+import {
+  NotificationTargetType,
+  NotificationType,
+} from './notifications.entity';
 import { NotificationsService } from './notifications.service';
 
 const MAX_EXCERPT_LENGTH = 80;
@@ -26,6 +31,8 @@ export class NotificationsListener {
     private readonly postsRepository: Repository<Post>,
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
+    @InjectRepository(Article)
+    private readonly articlesRepository: Repository<Article>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly notificationsService: NotificationsService,
@@ -58,11 +65,13 @@ export class NotificationsListener {
     await this.notificationsService.createNotification(
       post.authorId,
       NotificationType.POST_LIKED,
+      NotificationTargetType.POST,
       {
         type: NotificationType.POST_LIKED,
         actorId: actor.id,
         actorName: actor.displayName ?? actor.username,
         actorAvatarUrl: actor.avatarUrl,
+        targetType: NotificationTargetType.POST,
         postId: post.id,
         postExcerpt: this.toExcerpt(post.content),
         createdAt: new Date().toISOString(),
@@ -101,11 +110,13 @@ export class NotificationsListener {
     await this.notificationsService.createNotification(
       post.authorId,
       NotificationType.POST_COMMENTED,
+      NotificationTargetType.POST,
       {
         type: NotificationType.POST_COMMENTED,
         actorId: actor.id,
         actorName: actor.displayName ?? actor.username,
         actorAvatarUrl: actor.avatarUrl,
+        targetType: NotificationTargetType.POST,
         postId: post.id,
         postExcerpt: this.toExcerpt(post.content),
         commentId: comment.id,
@@ -143,9 +154,20 @@ export class NotificationsListener {
       return;
     }
 
+    const article =
+      parentComment.targetType === TargetType.ARTICLE
+        ? await this.articlesRepository.findOne({
+            where: { id: parentComment.targetId },
+            select: ['id', 'slug'],
+          })
+        : null;
+
     await this.notificationsService.createNotification(
       parentComment.authorId,
       NotificationType.COMMENT_REPLIED,
+      parentComment.targetType === TargetType.ARTICLE
+        ? NotificationTargetType.ARTICLE
+        : NotificationTargetType.POST,
       {
         type: NotificationType.COMMENT_REPLIED,
         actorId: actor.id,
@@ -153,6 +175,7 @@ export class NotificationsListener {
         actorAvatarUrl: actor.avatarUrl,
         targetType: parentComment.targetType,
         targetId: parentComment.targetId,
+        articleSlug: article?.slug,
         parentCommentId: parentComment.id,
         replyCommentId: replyComment.id,
         replyExcerpt: this.toExcerpt(replyComment.content),
@@ -182,11 +205,13 @@ export class NotificationsListener {
     await this.notificationsService.createNotification(
       event.followeeId,
       NotificationType.NEW_FOLLOWER,
+      NotificationTargetType.USER,
       {
         type: NotificationType.NEW_FOLLOWER,
         actorId: actor.id,
         actorName: actor.displayName ?? actor.username,
         actorAvatarUrl: actor.avatarUrl,
+        targetType: NotificationTargetType.USER,
         createdAt: new Date().toISOString(),
       },
     );

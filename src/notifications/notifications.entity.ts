@@ -16,8 +16,15 @@ export enum NotificationType {
   NEW_FOLLOWER = 'NEW_FOLLOWER',
 }
 
+export enum NotificationTargetType {
+  POST = 'POST',
+  ARTICLE = 'ARTICLE',
+  USER = 'USER',
+}
+
 @Entity('notifications')
 @Index(['userId', 'isRead', 'createdAt'])
+@Index(['userId', 'targetType', 'isRead', 'createdAt'])
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -27,6 +34,9 @@ export class Notification {
 
   @Column({ type: 'enum', enum: NotificationType })
   type: NotificationType;
+
+  @Column({ type: 'enum', enum: NotificationTargetType, nullable: true })
+  targetType: NotificationTargetType | null;
 
   @Column({ type: 'jsonb' })
   payload: Record<string, unknown>;

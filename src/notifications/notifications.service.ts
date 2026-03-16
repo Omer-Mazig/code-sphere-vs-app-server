@@ -5,7 +5,11 @@ import { Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { Notification, NotificationType } from './notifications.entity';
+import {
+  Notification,
+  NotificationTargetType,
+  NotificationType,
+} from './notifications.entity';
 
 type NotificationStreamEvent =
   | {
@@ -39,11 +43,13 @@ export class NotificationsService {
   async createNotification(
     userId: string,
     type: NotificationType,
+    targetType: NotificationTargetType,
     payload: Record<string, unknown>,
   ) {
     const notification = this.notificationsRepository.create({
       userId,
       type,
+      targetType,
       payload,
       isRead: false,
       readAt: null,
@@ -70,17 +76,35 @@ export class NotificationsService {
     userId: string,
     page: number,
     limit: number,
+    filters?: {
+      targetType?: NotificationTargetType;
+      isRead?: boolean;
+    },
   ): Promise<
     PaginatedPayload<ReturnType<NotificationsService['formatNotification']>>
   > {
     const skip = (page - 1) * limit;
 
-    const [items, total] = await this.notificationsRepository.findAndCount({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    const query = this.notificationsRepository
+      .createQueryBuilder('notification')
+      .where('notification.userId = :userId', { userId })
+      .orderBy('notification.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (filters?.targetType) {
+      query.andWhere('notification.targetType = :targetType', {
+        targetType: filters.targetType,
+      });
+    }
+
+    if (filters?.isRead !== undefined) {
+      query.andWhere('notification.isRead = :isRead', {
+        isRead: filters.isRead,
+      });
+    }
+
+    const [items, total] = await query.getManyAndCount();
 
     return {
       items: items.map((item) => this.formatNotification(item)),
@@ -181,6 +205,7 @@ export class NotificationsService {
     return {
       id: notification.id,
       type: notification.type,
+      targetType: notification.targetType,
       payload: notification.payload,
       isRead: notification.isRead,
       createdAt: notification.createdAt,
