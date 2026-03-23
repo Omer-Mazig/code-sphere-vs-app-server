@@ -5,13 +5,21 @@ import { Comment } from '../interactions/entities/comment.entity';
 import { Post } from '../posts/entities/post.entity';
 import { User } from '../users/entities/user.entity';
 import { Notification } from './notifications.entity';
+import { NotificationStreamToken } from './notification-stream-token.entity';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsListener } from './notifications.listener';
 import { NotificationsService } from './notifications.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, User, Post, Comment, Article]),
+    TypeOrmModule.forFeature([
+      Notification,
+      NotificationStreamToken,
+      User,
+      Post,
+      Comment,
+      Article,
+    ]),
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationsListener],

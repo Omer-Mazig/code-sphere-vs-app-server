@@ -20,6 +20,11 @@ import {
 } from './notifications.entity';
 import { NotificationsService } from './notifications.service';
 
+/*
+  If these event handlers become hot paths, 
+  we might want batching or background jobs.
+*/
+
 const MAX_EXCERPT_LENGTH = 80;
 
 @Injectable()

@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable, MessageEvent } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
+import { randomBytes, createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
@@ -10,6 +11,7 @@ import {
   NotificationTargetType,
   NotificationType,
 } from './notifications.entity';
+import { NotificationStreamToken } from './notification-stream-token.entity';
 
 type NotificationStreamEvent =
   | {
@@ -26,7 +28,54 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationsRepository: Repository<Notification>,
+    @InjectRepository(NotificationStreamToken)
+    private readonly notificationStreamTokenRepository: Repository<NotificationStreamToken>,
   ) {}
+
+  async createStreamToken(userId: string) {
+    const streamToken = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(streamToken);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await this.notificationStreamTokenRepository.delete({ tokenHash });
+
+    await this.notificationStreamTokenRepository.save({
+      userId,
+      tokenHash,
+      expiresAt,
+    });
+
+    return { streamToken };
+  }
+
+  async validateStreamToken(streamToken: string): Promise<string> {
+    const tokenHash = this.hashToken(streamToken);
+
+    const token = await this.notificationStreamTokenRepository.findOne({
+      where: { tokenHash },
+    });
+
+    if (!token) {
+      throw new BusinessException(
+        ErrorCode.NOTIFICATION_STREAM_TOKEN_INVALID,
+        `Stream token is invalid`,
+        'Stream token is invalid',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    if (token.expiresAt <= new Date()) {
+      await this.notificationStreamTokenRepository.delete({ tokenHash });
+      throw new BusinessException(
+        ErrorCode.NOTIFICATION_STREAM_TOKEN_EXPIRED,
+        `Stream token expired`,
+        'Stream token expired',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    return token.userId;
+  }
 
   detachStream(userId: string, stream: Subject<MessageEvent>) {
     const streamSet = this.userStreams.get(userId);
@@ -211,5 +260,9 @@ export class NotificationsService {
       createdAt: notification.createdAt,
       readAt: notification.readAt,
     };
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
   }
 }

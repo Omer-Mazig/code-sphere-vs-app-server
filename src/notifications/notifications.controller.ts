@@ -1,5 +1,6 @@
 import {
   Controller,
+  Post,
   Get,
   MessageEvent,
   Patch,
@@ -8,9 +9,9 @@ import {
   Sse,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiParam, ApiProduces, ApiTags } from '@nestjs/swagger';
-import { Observable, interval, map, merge } from 'rxjs';
-import { finalize } from 'rxjs/operators';
-import { CurrentUser, Paginated } from '../common/decorators';
+import { Observable, from, interval, map, merge } from 'rxjs';
+import { finalize, switchMap } from 'rxjs/operators';
+import { CurrentUser, Paginated, Public } from '../common/decorators';
 import {
   ApiEnvelopeOkResponse,
   ApiEnvelopePaginatedOkResponse,
@@ -20,6 +21,8 @@ import {
   MarkAllReadResponseDto,
   NotificationResponseDto,
   NotificationsQueryDto,
+  StreamTokenResponseDto,
+  StreamTokenQueryDto,
   UnreadCountResponseDto,
 } from './dto';
 import { NotificationsService } from './notifications.service';
@@ -70,7 +73,15 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(id, userId);
   }
 
+  @Post('stream-token')
+  @ApiEnvelopeOkResponse(StreamTokenResponseDto)
+  @ApiStandardErrorResponses()
+  createStreamToken(@CurrentUser() userId: string) {
+    return this.notificationsService.createStreamToken(userId);
+  }
+
   @Sse('stream')
+  @Public()
   @ApiProduces('text/event-stream')
   @ApiOkResponse({
     description: 'Server-Sent Events stream for real-time user notifications.',
@@ -81,19 +92,23 @@ export class NotificationsController {
     },
   })
   @ApiStandardErrorResponses()
-  stream(@CurrentUser() userId: string): Observable<MessageEvent> {
-    const stream = this.notificationsService.createStream(userId);
-    const heartbeat$ = interval(25000).pipe(
-      map(
-        (): MessageEvent => ({
-          type: 'ping',
-          data: { timestamp: new Date().toISOString() },
-        }),
-      ),
-    );
+  stream(@Query() query: StreamTokenQueryDto): Observable<MessageEvent> {
+    return from(this.notificationsService.validateStreamToken(query.streamToken)).pipe(
+      switchMap((userId) => {
+        const stream = this.notificationsService.createStream(userId);
+        const heartbeat$ = interval(25000).pipe(
+          map(
+            (): MessageEvent => ({
+              type: 'ping',
+              data: { timestamp: new Date().toISOString() },
+            }),
+          ),
+        );
 
-    return merge(stream.asObservable(), heartbeat$).pipe(
-      finalize(() => this.notificationsService.detachStream(userId, stream)),
+        return merge(stream.asObservable(), heartbeat$).pipe(
+          finalize(() => this.notificationsService.detachStream(userId, stream)),
+        );
+      }),
     );
   }
 }
