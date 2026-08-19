@@ -6,9 +6,13 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { ThrottlerException } from '@nestjs/throttler';
+import { Response } from 'express';
 import { BusinessException } from '../errors/business.exception';
 import { ErrorCode } from '../errors/error-codes.enum';
+import { mapDatabaseError } from '../errors/map-database-error';
+import { redactSensitiveFields } from '../utils/redact-sensitive-fields';
+import type { RequestWithContext } from '../middleware/request-context.middleware';
 
 interface ErrorResponse {
   statusCode: number;
@@ -24,7 +28,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithContext>();
     const response = ctx.getResponse<Response>();
 
     let status: number;
@@ -37,17 +41,33 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errorCode = exception.errorCode;
       clientMessage = exception.clientMessage;
       internalMessage = exception.internalMessage;
+    } else if (exception instanceof ThrottlerException) {
+      status = HttpStatus.TOO_MANY_REQUESTS;
+      errorCode = ErrorCode.RATE_LIMIT_EXCEEDED;
+      clientMessage = 'Too many requests. Please try again later.';
+      internalMessage = this.extractInternalMessage(exception);
+      if (!response.getHeader('Retry-After')) {
+        response.setHeader('Retry-After', '60');
+      }
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       errorCode = this.mapHttpStatusToErrorCode(status);
       clientMessage = this.getClientMessageForHttpException(exception);
       internalMessage = this.extractInternalMessage(exception);
     } else {
-      status = HttpStatus.INTERNAL_SERVER_ERROR;
-      errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
-      clientMessage = 'An unexpected error occurred';
-      internalMessage =
-        exception instanceof Error ? exception.message : String(exception);
+      const databaseError = mapDatabaseError(exception);
+      if (databaseError) {
+        status = databaseError.status;
+        errorCode = databaseError.errorCode;
+        clientMessage = databaseError.clientMessage;
+        internalMessage = databaseError.internalMessage;
+      } else {
+        status = HttpStatus.INTERNAL_SERVER_ERROR;
+        errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
+        clientMessage = 'An unexpected error occurred';
+        internalMessage =
+          exception instanceof Error ? exception.message : String(exception);
+      }
     }
 
     const timestamp = new Date().toISOString();
@@ -58,9 +78,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
       timestamp,
+      requestId: request.requestId,
       stack: exception instanceof Error ? exception.stack : undefined,
-      body: request.body,
-      query: request.query,
+      body: redactSensitiveFields(request.body as unknown),
+      query: redactSensitiveFields(request.query as unknown),
       params: request.params,
     });
 
@@ -76,7 +97,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private mapHttpStatusToErrorCode(status: number): ErrorCode {
-    switch (status) {
+    switch (status as HttpStatus) {
       case HttpStatus.UNAUTHORIZED:
         return ErrorCode.AUTHENTICATION_ERROR;
       case HttpStatus.NOT_FOUND:
@@ -85,6 +106,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return ErrorCode.VALIDATION_ERROR;
       case HttpStatus.FORBIDDEN:
         return ErrorCode.AUTHORIZATION_ERROR;
+      case HttpStatus.CONFLICT:
+        return ErrorCode.DUPLICATE_RESOURCE;
+      case HttpStatus.TOO_MANY_REQUESTS:
+        return ErrorCode.RATE_LIMIT_EXCEEDED;
       default:
         return ErrorCode.INTERNAL_SERVER_ERROR;
     }
@@ -93,7 +118,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private getClientMessageForHttpException(exception: HttpException): string {
     const status = exception.getStatus();
 
-    switch (status) {
+    switch (status as HttpStatus) {
       case HttpStatus.UNAUTHORIZED:
         return 'Authentication required';
       case HttpStatus.NOT_FOUND:
@@ -102,6 +127,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return 'Invalid request data';
       case HttpStatus.FORBIDDEN:
         return 'Access denied';
+      case HttpStatus.CONFLICT:
+        return 'Resource already exists';
+      case HttpStatus.TOO_MANY_REQUESTS:
+        return 'Too many requests. Please try again later.';
       default:
         return 'An unexpected error occurred';
     }

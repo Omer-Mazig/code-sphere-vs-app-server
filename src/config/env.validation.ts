@@ -7,6 +7,10 @@ export const envValidationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
+  CORS_ORIGINS: Joi.string().optional(),
+  LOG_LEVEL: Joi.string()
+    .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
+    .optional(),
 
   // Database
   DB_HOST: Joi.string().default('localhost'),

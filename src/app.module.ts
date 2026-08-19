@@ -4,18 +4,20 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { LoggerModule } from 'nestjs-pino';
 import { DevelopmentWaitMiddleware, RequestContextMiddleware } from './common';
 import {
   databaseConfig,
   appConfig,
   throttlerConfig,
   authConfig,
+  loggerConfig,
   envValidationSchema,
+  buildPinoHttpParams,
 } from './config';
 import { AuthGuard } from './common/guards';
 import {
   PaginatedResponseInterceptor,
-  RequestLoggingInterceptor,
   SuccessEnvelopeInterceptor,
 } from './common/interceptors';
 import { AuthModule } from './auth/auth.module';
@@ -30,11 +32,26 @@ import { NotificationsModule } from './notifications/notifications.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, throttlerConfig, authConfig],
+      load: [
+        databaseConfig,
+        appConfig,
+        throttlerConfig,
+        authConfig,
+        loggerConfig,
+      ],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
       },
+    }),
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) =>
+        buildPinoHttpParams({
+          level: configService.get<string>('logger.level', 'info'),
+          pretty: configService.get<boolean>('logger.pretty', true),
+        }),
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -57,7 +74,7 @@ import { NotificationsModule } from './notifications/notifications.module';
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
         autoLoadEntities: true,
-        synchronize: true, // Only for development
+        synchronize: configService.get<boolean>('database.synchronize', false),
       }),
     }),
     EventEmitterModule.forRoot(),
@@ -78,10 +95,6 @@ import { NotificationsModule } from './notifications/notifications.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: RequestLoggingInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

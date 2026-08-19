@@ -120,7 +120,7 @@ export class AuthService {
 
     if (existingEmail) {
       throw new BusinessException(
-        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.USER_EMAIL_EXISTS,
         `User with email "${payload.email}" already exists`,
         'An account with this email already exists',
         HttpStatus.CONFLICT,
@@ -133,7 +133,7 @@ export class AuthService {
 
     if (existingUsername) {
       throw new BusinessException(
-        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.USER_USERNAME_EXISTS,
         `Username "${payload.username}" is taken`,
         'This username is already taken',
         HttpStatus.CONFLICT,
@@ -170,7 +170,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token missing',
-        'Refresh token missing',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -180,7 +180,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token signature invalid',
-        'Invalid refresh token',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -194,7 +194,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token not found',
-        'Invalid refresh token',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -204,7 +204,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token subject mismatch',
-        'Invalid refresh token',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -214,7 +214,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token reused',
-        'Invalid refresh token',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -224,7 +224,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token expired',
-        'Refresh token expired',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -238,7 +238,7 @@ export class AuthService {
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'User not available for refresh',
-        'Invalid refresh token',
+        'Unauthorized',
         HttpStatus.UNAUTHORIZED,
       );
     }

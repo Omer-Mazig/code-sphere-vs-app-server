@@ -1,0 +1,38 @@
+import { config } from 'dotenv';
+import { join } from 'path';
+import { DataSource } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { Follow } from '../users/entities/follow.entity';
+import { Post } from '../posts/entities/post.entity';
+import { Article } from '../articles/entities/article.entity';
+import { Like } from '../interactions/entities/like.entity';
+import { Comment } from '../interactions/entities/comment.entity';
+import { Share } from '../interactions/entities/share.entity';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
+import { Notification } from '../notifications/notifications.entity';
+import { NotificationStreamToken } from '../notifications/notification-stream-token.entity';
+
+config({ path: join(__dirname, '../../.env') });
+
+export default new DataSource({
+  type: 'postgres',
+  host: process.env.DB_HOST ?? 'localhost',
+  port: parseInt(process.env.DB_PORT ?? '5432', 10),
+  username: process.env.DB_USERNAME ?? 'postgres',
+  password: process.env.DB_PASSWORD ?? 'postgres',
+  database: process.env.DB_NAME ?? 'code_sphere',
+  entities: [
+    User,
+    Follow,
+    Post,
+    Article,
+    Like,
+    Comment,
+    Share,
+    RefreshToken,
+    Notification,
+    NotificationStreamToken,
+  ],
+  migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+  synchronize: false,
+});

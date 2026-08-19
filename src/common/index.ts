@@ -6,3 +6,4 @@ export * from './dto';
 export * from './interceptors';
 export * from './middleware';
 export * from './swagger';
+export * from './utils';
