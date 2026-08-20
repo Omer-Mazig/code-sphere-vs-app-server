@@ -85,6 +85,7 @@ export class CommentsController {
     return this.commentsService.getCommentMentionCandidatesForReply(
       currentUserId,
       query.targetId,
+      query.targetType,
       query.parentId,
       query.query,
     );

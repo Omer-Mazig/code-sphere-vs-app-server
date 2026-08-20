@@ -6,6 +6,7 @@ import { Comment } from '../entities/comment.entity';
 import { Like, TargetType } from '../entities/like.entity';
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
+import { Article } from '../../articles/entities/article.entity';
 import { FollowsService } from '../../users/follows.service';
 import {
   CreateCommentDto,
@@ -31,6 +32,8 @@ export class CommentsService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Post)
     private readonly postsRepository: Repository<Post>,
+    @InjectRepository(Article)
+    private readonly articlesRepository: Repository<Article>,
     private readonly followsService: FollowsService,
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
     private readonly eventEmitter: EventEmitter2,
@@ -246,19 +249,22 @@ export class CommentsService {
   async getCommentMentionCandidatesForReply(
     currentUserId: string | undefined,
     targetId: string,
+    targetType: TargetType,
     parentId?: string,
     query?: string,
   ) {
+    this.interactionTargetValidatorService.assertCommentTargetType(targetType);
     await this.interactionTargetValidatorService.ensureTargetExists(
       targetId,
-      TargetType.POST,
+      targetType,
     );
 
     const normalizedQuery = query?.trim().toLowerCase();
 
-    // Tier A: contextual candidates (post author + thread participants)
+    // Tier A: contextual candidates (content author + thread participants)
     const contextualCandidates = await this.getContextualMentionUsers(
       targetId,
+      targetType,
       parentId,
     );
 
@@ -429,10 +435,6 @@ export class CommentsService {
     targetType: TargetType,
     content: string,
   ) {
-    if (targetType !== TargetType.POST) {
-      return;
-    }
-
     const usernames = this.extractMentionedUsernames(content);
     if (usernames.length === 0) {
       return;
@@ -440,17 +442,17 @@ export class CommentsService {
 
     const allowedUserIds = new Set<string>();
 
-    // Post author is always allowed
-    const post = await this.postsRepository.findOne({
-      where: { id: targetId },
-      select: ['id', 'authorId'],
-    });
-    if (post) {
-      allowedUserIds.add(post.authorId);
+    const authorId = await this.getTargetAuthorId(targetId, targetType);
+    if (authorId) {
+      allowedUserIds.add(authorId);
     }
 
     if (parentId) {
-      const threadUsers = await this.getThreadMentionUsers(targetId, parentId);
+      const threadUsers = await this.getThreadMentionUsers(
+        targetId,
+        targetType,
+        parentId,
+      );
       for (const user of threadUsers) {
         allowedUserIds.add(user.id);
       }
@@ -523,22 +525,22 @@ export class CommentsService {
     }
   }
 
-  private async getContextualMentionUsers(targetId: string, parentId?: string) {
+  private async getContextualMentionUsers(
+    targetId: string,
+    targetType: TargetType,
+    parentId?: string,
+  ) {
     const userIds = new Set<string>();
 
-    // Always include the post author
-    const post = await this.postsRepository.findOne({
-      where: { id: targetId },
-      select: ['id', 'authorId'],
-    });
-    if (post) {
-      userIds.add(post.authorId);
+    const authorId = await this.getTargetAuthorId(targetId, targetType);
+    if (authorId) {
+      userIds.add(authorId);
     }
 
     // If reply, include parent comment author + sibling reply authors
     if (parentId) {
       const parent = await this.commentsRepository.findOne({
-        where: { id: parentId, targetId, targetType: TargetType.POST },
+        where: { id: parentId, targetId, targetType },
       });
 
       if (parent) {
@@ -567,7 +569,34 @@ export class CommentsService {
     });
   }
 
-  private async getThreadMentionUsers(targetId: string, parentId: string) {
+  private async getTargetAuthorId(
+    targetId: string,
+    targetType: TargetType,
+  ): Promise<string | null> {
+    if (targetType === TargetType.POST) {
+      const post = await this.postsRepository.findOne({
+        where: { id: targetId },
+        select: ['id', 'authorId'],
+      });
+      return post?.authorId ?? null;
+    }
+
+    if (targetType === TargetType.ARTICLE) {
+      const article = await this.articlesRepository.findOne({
+        where: { id: targetId },
+        select: ['id', 'authorId'],
+      });
+      return article?.authorId ?? null;
+    }
+
+    return null;
+  }
+
+  private async getThreadMentionUsers(
+    targetId: string,
+    targetType: TargetType,
+    parentId: string,
+  ) {
     const parent = await this.commentsRepository.findOne({
       where: { id: parentId },
     });
@@ -581,11 +610,11 @@ export class CommentsService {
       );
     }
 
-    if (parent.targetId !== targetId || parent.targetType !== TargetType.POST) {
+    if (parent.targetId !== targetId || parent.targetType !== targetType) {
       throw new BusinessException(
         ErrorCode.COMMENT_PARENT_INVALID,
         `Parent comment "${parentId}" target mismatch`,
-        'This thread is not related to the target post.',
+        'This thread is not related to this content.',
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -44,6 +44,9 @@ export class ArticleResponseDto {
   likesCount!: number;
 
   @ApiProperty()
+  commentsCount!: number;
+
+  @ApiProperty()
   isLiked!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time' })

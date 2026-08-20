@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
+import { Comment } from '../interactions/entities/comment.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
@@ -16,6 +17,8 @@ export class ArticlesService {
     private readonly articlesRepository: Repository<Article>,
     @InjectRepository(Like)
     private readonly likesRepository: Repository<Like>,
+    @InjectRepository(Comment)
+    private readonly commentsRepository: Repository<Comment>,
   ) {}
 
   async create(authorId: string, dto: CreateArticleDto) {
@@ -139,7 +142,8 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [enriched] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [enriched] = await this.enrichWithCommentCounts([withLikes]);
     return enriched;
   }
 
@@ -159,7 +163,8 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [enriched] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [enriched] = await this.enrichWithCommentCounts([withLikes]);
     return enriched;
   }
 
@@ -191,7 +196,8 @@ export class ArticlesService {
     const [articles, total] = await qb.getManyAndCount();
 
     const items = articles.map((article) => this.formatArticle(article));
-    const enrichedItems = await this.enrichWithLikes(items, currentUserId);
+    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const enrichedItems = await this.enrichWithCommentCounts(withLikes);
 
     return { items: enrichedItems, total, page, limit };
   }
@@ -255,6 +261,35 @@ export class ArticlesService {
       ...item,
       likesCount: countMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
+    }));
+  }
+
+  private async enrichWithCommentCounts<T extends { id: string }>(
+    items: T[],
+  ): Promise<(T & { commentsCount: number })[]> {
+    if (items.length === 0) return [];
+
+    const ids = items.map((item) => item.id);
+
+    const countsRaw: { targetId: string; count: string }[] =
+      await this.commentsRepository
+        .createQueryBuilder('comment')
+        .select('comment.targetId', 'targetId')
+        .addSelect('COUNT(*)', 'count')
+        .where('comment.targetId IN (:...ids)', { ids })
+        .andWhere('comment.targetType = :targetType', {
+          targetType: TargetType.ARTICLE,
+        })
+        .groupBy('comment.targetId')
+        .getRawMany();
+
+    const countMap = new Map(
+      countsRaw.map((row) => [row.targetId, Number(row.count)]),
+    );
+
+    return items.map((item) => ({
+      ...item,
+      commentsCount: countMap.get(item.id) ?? 0,
     }));
   }
 

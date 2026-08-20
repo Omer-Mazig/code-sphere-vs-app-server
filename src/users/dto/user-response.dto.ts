@@ -38,6 +38,12 @@ export class UserProfileResponseDto {
   followingCount!: number;
 
   @ApiProperty()
+  postsCount!: number;
+
+  @ApiProperty()
+  articlesCount!: number;
+
+  @ApiProperty()
   isFollowing!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time' })

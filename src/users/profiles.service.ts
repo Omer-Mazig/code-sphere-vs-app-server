@@ -1,26 +1,38 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 import { FollowsService } from './follows.service';
+import { Post } from '../posts/entities/post.entity';
+import { Article } from '../articles/entities/article.entity';
 
 @Injectable()
 export class ProfilesService {
   constructor(
     private readonly usersService: UsersService,
     private readonly followsService: FollowsService,
+    @InjectRepository(Post)
+    private readonly postsRepository: Repository<Post>,
+    @InjectRepository(Article)
+    private readonly articlesRepository: Repository<Article>,
   ) {}
 
   async getMyProfile(currentUserId: string) {
     const user = await this.usersService.findUserOrFail(currentUserId);
 
-    const { followersCount, followingCount } =
-      await this.followsService.getCounts(currentUserId);
+    const [{ followersCount, followingCount }, contentCounts] =
+      await Promise.all([
+        this.followsService.getCounts(currentUserId),
+        this.getContentCounts(currentUserId, { includeUnpublished: true }),
+      ]);
 
     return {
       ...this.formatProfile(user, { includeEmail: true }),
       followersCount,
       followingCount,
+      ...contentCounts,
       isFollowing: false,
     };
   }
@@ -28,19 +40,20 @@ export class ProfilesService {
   async getProfile(targetUserId: string, currentUserId?: string) {
     const user = await this.usersService.findUserOrFail(targetUserId);
 
-    const [{ followersCount, followingCount }, isFollowing] = await Promise.all(
-      [
+    const [{ followersCount, followingCount }, isFollowing, contentCounts] =
+      await Promise.all([
         this.followsService.getCounts(targetUserId),
         currentUserId
           ? this.followsService.isFollowing(currentUserId, targetUserId)
           : Promise.resolve(false),
-      ],
-    );
+        this.getContentCounts(targetUserId, { includeUnpublished: false }),
+      ]);
 
     return {
       ...this.formatProfile(user, { includeEmail: false }),
       followersCount,
       followingCount,
+      ...contentCounts,
       isFollowing,
     };
   }
@@ -51,6 +64,22 @@ export class ProfilesService {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
+
+  private async getContentCounts(
+    authorId: string,
+    options: { includeUnpublished: boolean },
+  ) {
+    const [postsCount, articlesCount] = await Promise.all([
+      this.postsRepository.count({ where: { authorId } }),
+      this.articlesRepository.count({
+        where: options.includeUnpublished
+          ? { authorId }
+          : { authorId, isPublished: true },
+      }),
+    ]);
+
+    return { postsCount, articlesCount };
+  }
 
   private formatProfile(user: User, options: { includeEmail: boolean }) {
     return {
