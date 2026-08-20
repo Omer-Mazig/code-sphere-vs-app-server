@@ -12,6 +12,7 @@ import {
   throttlerConfig,
   authConfig,
   loggerConfig,
+  emailConfig,
   envValidationSchema,
   buildPinoHttpParams,
 } from './config';
@@ -38,6 +39,7 @@ import { NotificationsModule } from './notifications/notifications.module';
         throttlerConfig,
         authConfig,
         loggerConfig,
+        emailConfig,
       ],
       validationSchema: envValidationSchema,
       validationOptions: {

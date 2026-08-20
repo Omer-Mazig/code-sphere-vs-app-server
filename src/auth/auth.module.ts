@@ -5,11 +5,13 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { EmailModule } from '../email';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, RefreshToken]),
     JwtModule.register({}),
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],

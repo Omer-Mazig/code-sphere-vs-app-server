@@ -18,7 +18,7 @@ export class ProfilesService {
       await this.followsService.getCounts(currentUserId);
 
     return {
-      ...this.formatProfile(user),
+      ...this.formatProfile(user, { includeEmail: true }),
       followersCount,
       followingCount,
       isFollowing: false,
@@ -38,7 +38,7 @@ export class ProfilesService {
     );
 
     return {
-      ...this.formatProfile(user),
+      ...this.formatProfile(user, { includeEmail: false }),
       followersCount,
       followingCount,
       isFollowing,
@@ -52,10 +52,10 @@ export class ProfilesService {
 
   // ── Helpers ────────────────────────────────────────────────────────
 
-  private formatProfile(user: User) {
+  private formatProfile(user: User, options: { includeEmail: boolean }) {
     return {
       id: user.id,
-      email: user.email,
+      ...(options.includeEmail && { email: user.email }),
       username: user.username,
       displayName: user.displayName,
       bio: user.bio,

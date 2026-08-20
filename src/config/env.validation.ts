@@ -29,4 +29,13 @@ export const envValidationSchema = Joi.object({
   JWT_ACCESS_TTL_SECONDS: Joi.number().default(900),
   JWT_REFRESH_TTL_SECONDS: Joi.number().default(60 * 60 * 24 * 30),
   REFRESH_TOKEN_COOKIE_NAME: Joi.string().default('refresh_token'),
+
+  // Email
+  FRONTEND_URL: Joi.string().uri().default('http://localhost:5173'),
+  EMAIL_PROVIDER: Joi.string().valid('console', 'smtp').optional(),
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().default(587),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASSWORD: Joi.string().optional(),
+  SMTP_FROM: Joi.string().optional(),
 });

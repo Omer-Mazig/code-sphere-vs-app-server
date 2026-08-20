@@ -1,20 +1,30 @@
 import {
   IsEmail,
   IsString,
-  MinLength,
-  MaxLength,
   Matches,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_PATTERN,
+  PASSWORD_POLICY_MESSAGE,
+} from './password.constraints';
 
 export class RegisterDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'password123' })
+  @ApiProperty({
+    example: 'Password123',
+    minLength: PASSWORD_MIN_LENGTH,
+    description: PASSWORD_POLICY_MESSAGE,
+  })
   @IsString()
-  @MinLength(6)
+  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_POLICY_MESSAGE })
+  @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE })
   password: string;
 
   @ApiProperty({ example: 'johndoe' })

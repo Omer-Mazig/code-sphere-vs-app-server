@@ -1,9 +1,12 @@
 import { Controller, Post, Body, Req, Res, HttpCode } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Public } from '../common/decorators';
 import {
   ApiEnvelopeCreatedResponse,
@@ -13,6 +16,8 @@ import {
 import {
   AuthSessionResponseDto,
   LogoutResponseDto,
+  RegisterResponseDto,
+  ResendVerificationResponseDto,
 } from './dto/auth-response.dto';
 
 @ApiTags('Auth')
@@ -23,6 +28,7 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiEnvelopeOkResponse(AuthSessionResponseDto)
   @ApiStandardErrorResponses()
   async login(
@@ -49,14 +55,25 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  @ApiEnvelopeCreatedResponse(AuthSessionResponseDto)
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @ApiEnvelopeCreatedResponse(RegisterResponseDto)
   @ApiStandardErrorResponses()
-  async register(
-    @Body() payload: RegisterDto,
+  async register(@Body() payload: RegisterDto) {
+    return this.authService.register(payload);
+  }
+
+  @Post('verify-email')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiEnvelopeOkResponse(AuthSessionResponseDto)
+  @ApiStandardErrorResponses()
+  async verifyEmail(
+    @Body() payload: VerifyEmailDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(payload, {
+    const result = await this.authService.verifyEmail(payload.token, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -73,9 +90,20 @@ export class AuthController {
     };
   }
 
+  @Post('resend-verification')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @ApiEnvelopeOkResponse(ResendVerificationResponseDto)
+  @ApiStandardErrorResponses()
+  async resendVerification(@Body() payload: ResendVerificationDto) {
+    return this.authService.resendVerification(payload.email);
+  }
+
   @Post('refresh')
   @Public()
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiEnvelopeOkResponse(AuthSessionResponseDto)
   @ApiStandardErrorResponses()
   async refresh(
@@ -83,7 +111,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const cookieName = this.authService.getRefreshCookieName();
-    const refreshToken = req.cookies?.[cookieName];
+    const refreshToken = this.readCookie(req, cookieName);
 
     const result = await this.authService.refresh(refreshToken, {
       ipAddress: req.ip,
@@ -109,7 +137,7 @@ export class AuthController {
   @ApiStandardErrorResponses()
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const cookieName = this.authService.getRefreshCookieName();
-    const refreshToken = req.cookies?.[cookieName];
+    const refreshToken = this.readCookie(req, cookieName);
 
     await this.authService.logout(refreshToken);
 
@@ -121,6 +149,12 @@ export class AuthController {
     });
 
     return { message: 'Logged out' };
+  }
+
+  private readCookie(req: Request, name: string): string | undefined {
+    const cookies = req.cookies as Record<string, unknown> | undefined;
+    const value = cookies?.[name];
+    return typeof value === 'string' ? value : undefined;
   }
 
   private setRefreshCookie(

@@ -12,6 +12,7 @@ import { RegisterDto } from './dto/register.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuthPayload } from './auth.types';
+import { EmailService } from '../email';
 
 type TokenBundle = {
   accessToken: string;
@@ -19,6 +20,10 @@ type TokenBundle = {
   refreshTokenExpiresAt: Date;
   refreshTokenId: string;
 };
+
+const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const GENERIC_VERIFICATION_SENT_MESSAGE =
+  'If an account exists and is unverified, a new email has been sent.';
 
 @Injectable()
 export class AuthService {
@@ -35,6 +40,7 @@ export class AuthService {
     private readonly refreshTokensRepository: Repository<RefreshToken>,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {
     this.accessTokenSecret = this.configService.get<string>(
       'auth.accessTokenSecret',
@@ -77,15 +83,6 @@ export class AuthService {
       );
     }
 
-    if (!user.isActive) {
-      throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
-        `User with email "${payload.email}" is inactive`,
-        'Account disabled',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
     const passwordMatches = await bcrypt.compare(
       payload.password,
       user.passwordHash,
@@ -100,6 +97,24 @@ export class AuthService {
       );
     }
 
+    if (!user.isActive) {
+      throw new BusinessException(
+        ErrorCode.AUTHENTICATION_ERROR,
+        `User with email "${payload.email}" is inactive`,
+        'Account disabled',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    if (!user.emailVerified) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_NOT_VERIFIED,
+        `User with email "${payload.email}" has not verified their email`,
+        'Please verify your email before signing in',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     const tokens = await this.issueTokens(user, metadata);
 
     return {
@@ -110,10 +125,7 @@ export class AuthService {
     };
   }
 
-  async register(
-    payload: RegisterDto,
-    metadata: { ipAddress?: string; userAgent?: string },
-  ) {
+  async register(payload: RegisterDto) {
     const existingEmail = await this.usersRepository.findOne({
       where: { email: payload.email },
     });
@@ -141,6 +153,7 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
+    const verification = this.createEmailVerification();
 
     const user = this.usersRepository.create({
       email: payload.email,
@@ -148,9 +161,70 @@ export class AuthService {
       username: payload.username,
       displayName: payload.displayName,
       isActive: true,
+      emailVerified: false,
+      emailVerificationTokenHash: verification.tokenHash,
+      emailVerificationExpiresAt: verification.expiresAt,
     });
 
     await this.usersRepository.save(user);
+
+    const verificationUrl = this.emailService.buildVerificationUrl(
+      verification.token,
+    );
+    await this.emailService.sendVerificationEmail(user.email, verificationUrl);
+
+    return {
+      message: 'Check your email to verify your account before signing in.',
+      email: user.email,
+      ...(this.emailService.shouldExposeVerificationUrl() && {
+        verificationUrl,
+      }),
+    };
+  }
+
+  async verifyEmail(
+    token: string,
+    metadata: { ipAddress?: string; userAgent?: string },
+  ) {
+    if (!token) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
+        'Email verification token missing',
+        'This verification link is invalid',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const tokenHash = this.hashToken(token);
+    const user = await this.usersRepository.findOne({
+      where: { emailVerificationTokenHash: tokenHash },
+    });
+
+    if (!user) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
+        'Email verification token not found',
+        'This verification link is invalid or has already been used',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt <= new Date()
+    ) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_VERIFICATION_TOKEN_EXPIRED,
+        `Email verification token expired for user "${user.id}"`,
+        'This verification link has expired. Request a new one.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!user.emailVerified) {
+      user.emailVerified = true;
+      await this.usersRepository.save(user);
+    }
 
     const tokens = await this.issueTokens(user, metadata);
 
@@ -162,8 +236,33 @@ export class AuthService {
     };
   }
 
+  async resendVerification(email: string) {
+    const user = await this.usersRepository.findOne({ where: { email } });
+
+    if (!user || user.emailVerified) {
+      return { message: GENERIC_VERIFICATION_SENT_MESSAGE };
+    }
+
+    const verification = this.createEmailVerification();
+    user.emailVerificationTokenHash = verification.tokenHash;
+    user.emailVerificationExpiresAt = verification.expiresAt;
+    await this.usersRepository.save(user);
+
+    const verificationUrl = this.emailService.buildVerificationUrl(
+      verification.token,
+    );
+    await this.emailService.sendVerificationEmail(user.email, verificationUrl);
+
+    return {
+      message: GENERIC_VERIFICATION_SENT_MESSAGE,
+      ...(this.emailService.shouldExposeVerificationUrl() && {
+        verificationUrl,
+      }),
+    };
+  }
+
   async refresh(
-    refreshToken: string,
+    refreshToken: string | undefined,
     metadata: { ipAddress?: string; userAgent?: string },
   ) {
     if (!refreshToken) {
@@ -233,7 +332,7 @@ export class AuthService {
       where: { id: storedToken.userId },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || !user.emailVerified) {
       await this.revokeAllTokensForUser(storedToken.userId);
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
@@ -282,12 +381,21 @@ export class AuthService {
       );
     }
     try {
-      return this.jwtService.verify(token, {
+      return this.jwtService.verify<AuthPayload>(token, {
         secret: this.accessTokenSecret,
       });
     } catch {
       return null;
     }
+  }
+
+  private createEmailVerification() {
+    const token = randomBytes(32).toString('hex');
+    return {
+      token,
+      tokenHash: this.hashToken(token),
+      expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    };
   }
 
   private async issueTokens(
@@ -381,7 +489,7 @@ export class AuthService {
     };
   }
 
-  private verifyRefreshToken(token: string) {
+  private verifyRefreshToken(token: string): { sub: string } | null {
     if (!this.refreshTokenSecret) {
       throw new BusinessException(
         ErrorCode.INTERNAL_SERVER_ERROR,
@@ -391,9 +499,13 @@ export class AuthService {
       );
     }
     try {
-      return this.jwtService.verify(token, {
+      const payload = this.jwtService.verify<{ sub?: string }>(token, {
         secret: this.refreshTokenSecret,
       });
+      if (!payload.sub) {
+        return null;
+      }
+      return { sub: payload.sub };
     } catch {
       return null;
     }

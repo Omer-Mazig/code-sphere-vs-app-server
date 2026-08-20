@@ -27,3 +27,35 @@ export class AuthSessionResponseDto {
 }
 
 export class LogoutResponseDto extends MessageResponseDto {}
+
+export class RegisterResponseDto {
+  @ApiProperty({
+    example: 'Check your email to verify your account before signing in.',
+  })
+  message!: string;
+
+  @ApiProperty({ example: 'user@example.com' })
+  email!: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Present only in non-production so the verification link can be opened without SMTP.',
+  })
+  verificationUrl?: string;
+}
+
+export class ResendVerificationResponseDto {
+  @ApiProperty({
+    example:
+      'If an account exists and is unverified, a new email has been sent.',
+  })
+  message!: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Present only in non-production when a verification email was issued.',
+  })
+  verificationUrl?: string;
+}

@@ -177,6 +177,7 @@ export class SeedService {
             website: u.website,
             github: u.github,
             isActive: true,
+            emailVerified: true,
           }),
         );
       }

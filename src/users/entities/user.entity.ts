@@ -41,6 +41,15 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ default: true })
+  emailVerified: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  emailVerificationTokenHash: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerificationExpiresAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

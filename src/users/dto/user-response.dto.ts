@@ -1,12 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
 
 export class UserProfileResponseDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  email!: string;
+  @ApiPropertyOptional({
+    description: 'Present only on GET /users/me. Omitted from public profiles.',
+  })
+  email?: string;
 
   @ApiProperty()
   username!: string;
