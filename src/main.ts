@@ -2,12 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import { GlobalExceptionFilter } from './common/filters';
-import { SwaggerModule } from '@nestjs/swagger';
-import { buildSwaggerConfig } from './config/swagger.config';
-import * as cookieParser from 'cookie-parser';
-import helmet from 'helmet';
+import { configureHttpApp } from './app.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -19,36 +14,7 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api');
   const isProduction = configService.get<boolean>('app.isProduction', false);
 
-  app.setGlobalPrefix(apiPrefix);
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  app.use(cookieParser());
-  app.use(
-    helmet({
-      contentSecurityPolicy: isProduction ? undefined : false,
-    }),
-  );
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      disableErrorMessages: false,
-    }),
-  );
-
-  if (!isProduction) {
-    const swaggerConfig = buildSwaggerConfig();
-    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('docs', app, swaggerDocument);
-  }
-
-  const corsOrigins = configService.get<string[]>('app.corsOrigins', []);
-  app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : false,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
+  configureHttpApp(app, configService);
 
   await app.listen(port);
 

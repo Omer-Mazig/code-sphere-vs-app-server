@@ -4,7 +4,10 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class DevelopmentWaitMiddleware implements NestMiddleware {
   async use(req: Request, _res: Response, next: NextFunction) {
-    if (process.env.NODE_ENV === 'production') {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.NODE_ENV === 'test'
+    ) {
       return next();
     }
 

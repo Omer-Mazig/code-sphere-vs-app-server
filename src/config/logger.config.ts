@@ -9,7 +9,7 @@ export const loggerConfig = registerAs('logger', () => {
 
   return {
     level: process.env.LOG_LEVEL ?? (isProduction ? 'info' : 'debug'),
-    pretty: !isProduction,
+    pretty: nodeEnv === 'development',
   };
 });
 
