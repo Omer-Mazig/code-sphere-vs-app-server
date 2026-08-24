@@ -21,6 +21,7 @@ type SeedUser = {
   location?: string;
   website?: string;
   github?: string;
+  emailVerified: boolean;
 };
 
 type SeedPost = {
@@ -505,6 +506,7 @@ export class SeedService {
       username: 'cs_admin',
       displayName: 'CodeSphere Admin',
       bio: 'Official CodeSphere admin account.',
+      emailVerified: true,
     },
     {
       email: 'sarah@example.com',
@@ -515,6 +517,7 @@ export class SeedService {
       location: 'San Francisco, CA',
       website: 'https://sarahchen.dev',
       github: 'sarahchen',
+      emailVerified: true,
     },
     {
       email: 'alex@example.com',
@@ -524,6 +527,7 @@ export class SeedService {
       bio: 'Backend engineer @ BigCorp. Distributed systems nerd. Rust in my spare time.',
       location: 'Austin, TX',
       github: 'alexrivera',
+      emailVerified: true,
     },
     {
       email: 'mike@example.com',
@@ -534,6 +538,7 @@ export class SeedService {
       location: 'London, UK',
       website: 'https://mikej.io',
       github: 'mikejohnson',
+      emailVerified: true,
     },
     {
       email: 'lina@example.com',
@@ -543,6 +548,7 @@ export class SeedService {
       bio: 'Systems programmer. Rust evangelist. Contributing to the Linux kernel on weekends.',
       location: 'Berlin, Germany',
       github: 'linatorres',
+      emailVerified: true,
     },
     {
       email: 'jordan@example.com',
@@ -552,6 +558,7 @@ export class SeedService {
       bio: 'Data engineer & ML hobbyist. Python is life. Writing about data pipelines and MLOps.',
       location: 'Seoul, South Korea',
       github: 'jordankim',
+      emailVerified: true,
     },
     {
       email: 'emma@example.com',
@@ -562,6 +569,7 @@ export class SeedService {
       location: 'Tokyo, Japan',
       website: 'https://emmanakamura.dev',
       github: 'emmanakamura',
+      emailVerified: true,
     },
   ];
 
