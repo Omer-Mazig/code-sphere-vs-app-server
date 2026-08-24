@@ -21,6 +21,7 @@ type SeedUser = {
   location?: string;
   website?: string;
   github?: string;
+  avatarUrl?: string;
   emailVerified: boolean;
 };
 
@@ -177,6 +178,7 @@ export class SeedService {
             location: u.location,
             website: u.website,
             github: u.github,
+            avatarUrl: u.avatarUrl,
             isActive: true,
             emailVerified: true,
           }),
@@ -200,27 +202,55 @@ export class SeedService {
       ['lina_rust', 'sarah_dev'],
       ['jordan_py', 'sarah_dev'],
       ['emma_go', 'sarah_dev'],
+      ['nina_swift', 'sarah_dev'],
+      ['tom_java', 'sarah_dev'],
+      ['priya_devops', 'sarah_dev'],
+      ['carlos_mobile', 'sarah_dev'],
+      ['maya_design', 'sarah_dev'],
+      ['david_db', 'sarah_dev'],
+      ['olivia_sec', 'sarah_dev'],
+      ['ryan_startup', 'sarah_dev'],
 
       // alex_code is active, gets followers
       ['sarah_dev', 'alex_code'],
       ['mike_ts', 'alex_code'],
       ['jordan_py', 'alex_code'],
+      ['tom_java', 'alex_code'],
+      ['david_db', 'alex_code'],
 
       // mike_ts ↔ lina_rust (mutual)
       ['mike_ts', 'lina_rust'],
       ['lina_rust', 'mike_ts'],
+      ['maya_design', 'mike_ts'],
 
       // jordan_py follows a few
       ['jordan_py', 'emma_go'],
       ['jordan_py', 'lina_rust'],
+      ['jordan_py', 'david_db'],
 
       // emma_go follows a few
       ['emma_go', 'alex_code'],
       ['emma_go', 'jordan_py'],
+      ['emma_go', 'priya_devops'],
+
+      // New user connections
+      ['nina_swift', 'carlos_mobile'],
+      ['carlos_mobile', 'nina_swift'],
+      ['nina_swift', 'maya_design'],
+      ['tom_java', 'david_db'],
+      ['david_db', 'tom_java'],
+      ['priya_devops', 'emma_go'],
+      ['priya_devops', 'olivia_sec'],
+      ['olivia_sec', 'priya_devops'],
+      ['ryan_startup', 'alex_code'],
+      ['ryan_startup', 'mike_ts'],
+      ['maya_design', 'sarah_dev'],
+      ['carlos_mobile', 'mike_ts'],
 
       // admin follows key people
       ['cs_admin', 'sarah_dev'],
       ['cs_admin', 'alex_code'],
+      ['cs_admin', 'ryan_startup'],
     ];
 
     let created = 0;
@@ -385,9 +415,9 @@ export class SeedService {
       'Saved this. Will definitely reference it in my next project.',
     ];
 
-    // Seed comments on posts — ~2-4 per post
+    // Seed comments on posts — ~3-5 per post
     for (const post of posts) {
-      const commentCount = 2 + Math.floor(Math.random() * 3);
+      const commentCount = 3 + Math.floor(Math.random() * 3);
       const shuffledUsers = [...userIds].sort(() => Math.random() - 0.5);
 
       for (let i = 0; i < commentCount && i < shuffledUsers.length; i++) {
@@ -405,9 +435,9 @@ export class SeedService {
       }
     }
 
-    // Seed comments on articles — ~2-5 per article
+    // Seed comments on articles — ~3-6 per article
     for (const article of articles) {
-      const commentCount = 2 + Math.floor(Math.random() * 4);
+      const commentCount = 3 + Math.floor(Math.random() * 4);
       const shuffledUsers = [...userIds].sort(() => Math.random() - 0.5);
 
       for (let i = 0; i < commentCount && i < shuffledUsers.length; i++) {
@@ -517,6 +547,7 @@ export class SeedService {
       location: 'San Francisco, CA',
       website: 'https://sarahchen.dev',
       github: 'sarahchen',
+      avatarUrl: 'https://i.pravatar.cc/150?u=sarah_dev',
       emailVerified: true,
     },
     {
@@ -527,6 +558,7 @@ export class SeedService {
       bio: 'Backend engineer @ BigCorp. Distributed systems nerd. Rust in my spare time.',
       location: 'Austin, TX',
       github: 'alexrivera',
+      avatarUrl: 'https://i.pravatar.cc/150?u=alex_code',
       emailVerified: true,
     },
     {
@@ -538,6 +570,7 @@ export class SeedService {
       location: 'London, UK',
       website: 'https://mikej.io',
       github: 'mikejohnson',
+      avatarUrl: 'https://i.pravatar.cc/150?u=mike_ts',
       emailVerified: true,
     },
     {
@@ -548,6 +581,7 @@ export class SeedService {
       bio: 'Systems programmer. Rust evangelist. Contributing to the Linux kernel on weekends.',
       location: 'Berlin, Germany',
       github: 'linatorres',
+      avatarUrl: 'https://i.pravatar.cc/150?u=lina_rust',
       emailVerified: true,
     },
     {
@@ -558,6 +592,7 @@ export class SeedService {
       bio: 'Data engineer & ML hobbyist. Python is life. Writing about data pipelines and MLOps.',
       location: 'Seoul, South Korea',
       github: 'jordankim',
+      avatarUrl: 'https://i.pravatar.cc/150?u=jordan_py',
       emailVerified: true,
     },
     {
@@ -569,6 +604,98 @@ export class SeedService {
       location: 'Tokyo, Japan',
       website: 'https://emmanakamura.dev',
       github: 'emmanakamura',
+      avatarUrl: 'https://i.pravatar.cc/150?u=emma_go',
+      emailVerified: true,
+    },
+    {
+      email: 'nina@example.com',
+      password: 'Password123!',
+      username: 'nina_swift',
+      displayName: 'Nina Patel',
+      bio: 'iOS engineer building delightful mobile experiences. SwiftUI advocate. Previously at Apple.',
+      location: 'Cupertino, CA',
+      github: 'ninapatel',
+      avatarUrl: 'https://i.pravatar.cc/150?u=nina_swift',
+      emailVerified: true,
+    },
+    {
+      email: 'tom@example.com',
+      password: 'Password123!',
+      username: 'tom_java',
+      displayName: 'Tom Weber',
+      bio: 'Java backend developer. Spring Boot, Kafka, and way too much coffee. Building fintech APIs.',
+      location: 'Zurich, Switzerland',
+      github: 'tomweber',
+      avatarUrl: 'https://i.pravatar.cc/150?u=tom_java',
+      emailVerified: true,
+    },
+    {
+      email: 'priya@example.com',
+      password: 'Password123!',
+      username: 'priya_devops',
+      displayName: 'Priya Sharma',
+      bio: 'DevOps engineer. CI/CD pipelines, GitOps, and making deploys boring (in a good way).',
+      location: 'Bangalore, India',
+      website: 'https://priyasharma.dev',
+      github: 'priyasharma',
+      avatarUrl: 'https://i.pravatar.cc/150?u=priya_devops',
+      emailVerified: true,
+    },
+    {
+      email: 'carlos@example.com',
+      password: 'Password123!',
+      username: 'carlos_mobile',
+      displayName: 'Carlos Mendez',
+      bio: 'React Native developer. Cross-platform apps that feel native. Expo enthusiast.',
+      location: 'Barcelona, Spain',
+      github: 'carlosmendez',
+      avatarUrl: 'https://i.pravatar.cc/150?u=carlos_mobile',
+      emailVerified: true,
+    },
+    {
+      email: 'maya@example.com',
+      password: 'Password123!',
+      username: 'maya_design',
+      displayName: 'Maya Okonkwo',
+      bio: 'Design systems engineer. Bridging design and code with tokens, Storybook, and accessibility.',
+      location: 'Toronto, Canada',
+      website: 'https://mayaokonkwo.design',
+      github: 'mayaokonkwo',
+      avatarUrl: 'https://i.pravatar.cc/150?u=maya_design',
+      emailVerified: true,
+    },
+    {
+      email: 'david@example.com',
+      password: 'Password123!',
+      username: 'david_db',
+      displayName: 'David Okafor',
+      bio: 'Database engineer. PostgreSQL tuning, query optimization, and schema design at scale.',
+      location: 'Lagos, Nigeria',
+      github: 'davidokafor',
+      avatarUrl: 'https://i.pravatar.cc/150?u=david_db',
+      emailVerified: true,
+    },
+    {
+      email: 'olivia@example.com',
+      password: 'Password123!',
+      username: 'olivia_sec',
+      displayName: 'Olivia Grant',
+      bio: 'Application security engineer. Threat modeling, OWASP, and making security a team sport.',
+      location: 'Melbourne, Australia',
+      github: 'oliviagrant',
+      avatarUrl: 'https://i.pravatar.cc/150?u=olivia_sec',
+      emailVerified: true,
+    },
+    {
+      email: 'ryan@example.com',
+      password: 'Password123!',
+      username: 'ryan_startup',
+      displayName: 'Ryan Foster',
+      bio: 'CTO at a seed-stage startup. Full-stack generalist. Shipping fast, learning faster.',
+      location: 'New York, NY',
+      website: 'https://ryanfoster.io',
+      github: 'ryanfoster',
+      avatarUrl: 'https://i.pravatar.cc/150?u=ryan_startup',
       emailVerified: true,
     },
   ];
@@ -633,6 +760,101 @@ export class SeedService {
       authorUsername: 'emma_go',
       content:
         "Tip for anyone learning Go: don't fight the language. If you find yourself writing Java-style OOP patterns in Go, step back.\n\nComposition over inheritance. Interfaces are implicit. Simplicity is a feature, not a limitation.",
+    },
+    {
+      authorUsername: 'nina_swift',
+      content:
+        'SwiftUI previews are underrated for rapid UI iteration. I can test 5 layout variants in the time it used to take to rebuild once in UIKit.\n\nPro tip: use #Preview with different device sizes and dark mode variants.',
+    },
+    {
+      authorUsername: 'tom_java',
+      content:
+        'Just discovered virtual threads in Java 21. Our API latency under load dropped 40% with minimal code changes.\n\nIf you are still spinning up thread pools manually, it is worth a look.',
+    },
+    {
+      authorUsername: 'priya_devops',
+      content:
+        'Deployed our first GitOps workflow today — Argo CD syncing from main branch to staging automatically.\n\nNo more "works on my machine" deploys. PR merges trigger rollouts with automatic rollback on failure.',
+    },
+    {
+      authorUsername: 'carlos_mobile',
+      content:
+        'Expo SDK 52 is a game changer for React Native dev. The new architecture support finally feels production-ready.\n\nBuilt and shipped a feature to both iOS and Android in one afternoon.',
+    },
+    {
+      authorUsername: 'maya_design',
+      content:
+        'Shipped our design token migration this week. 200+ hardcoded colors replaced with semantic tokens.\n\nDark mode went from "we will do it later" to "it just works" overnight.',
+    },
+    {
+      authorUsername: 'david_db',
+      content:
+        'Found a query doing a sequential scan on 12M rows. Added a partial index, runtime went from 8s to 12ms.\n\nAlways check EXPLAIN ANALYZE before blaming the ORM.',
+    },
+    {
+      authorUsername: 'olivia_sec',
+      content:
+        'Ran our first threat modeling session with the product team today. Found 3 critical gaps before they became production incidents.\n\nSecurity is not a gate — it is a conversation.',
+    },
+    {
+      authorUsername: 'ryan_startup',
+      content:
+        'Week 47 at the startup. We finally have paying customers. The MVP that felt embarrassingly simple 6 months ago is now generating revenue.\n\nShip early, iterate fast, listen to users.',
+    },
+    {
+      authorUsername: 'sarah_dev',
+      content:
+        'Pair programming session today reminded me why I love this job. Two brains on a tricky race condition — solved in 20 minutes what would have taken me 2 hours solo.',
+    },
+    {
+      authorUsername: 'alex_code',
+      content:
+        'Event sourcing is not for every project, but when audit trails are a hard requirement, it is worth the complexity.\n\nWe are 3 months in and compliance reviews got dramatically easier.',
+    },
+    {
+      authorUsername: 'mike_ts',
+      content:
+        'Migrated our component library to CSS modules + Tailwind v4. Bundle size down 18%, and designers can finally tweak spacing without a PR.\n\nUtility-first CSS won.',
+    },
+    {
+      authorUsername: 'lina_rust',
+      content:
+        'Contributed my first patch to the Linux kernel mailing list. The review process is intense but the feedback quality is unmatched.\n\nRust in kernel space is getting real.',
+    },
+    {
+      authorUsername: 'jordan_py',
+      content:
+        'Polars is replacing pandas in our data pipelines. 10x faster on large DataFrames and the API is actually pleasant.\n\nIf you have not tried it yet, start with a single ETL job.',
+    },
+    {
+      authorUsername: 'nina_swift',
+      content:
+        'Apple Vision Pro dev kits arrived at the office. Spatial computing UI patterns are wild — everything you know about 2D layout goes out the window.\n\nExciting times for mobile devs.',
+    },
+    {
+      authorUsername: 'tom_java',
+      content:
+        'Spring Boot 3.4 native image support cut our cold start from 4s to 200ms on Lambda.\n\nGraalVM compilation is finicky but the runtime savings are real for serverless.',
+    },
+    {
+      authorUsername: 'priya_devops',
+      content:
+        'Chaos engineering Friday: we killed a random pod in production. HPA recovered in 30 seconds, zero user impact.\n\nConfidence in our infra is at an all-time high.',
+    },
+    {
+      authorUsername: 'david_db',
+      content:
+        'PostgreSQL 17 JSONB improvements are no joke. Our document-heavy queries are 3x faster after upgrading.\n\nAlways read the release notes before upgrading — there are gems in every version.',
+    },
+    {
+      authorUsername: 'maya_design',
+      content:
+        'Accessibility audit found 47 issues in our app. Fixed the top 10 in a sprint — screen reader users went from "unusable" to "pretty good".\n\nWCAG is not optional.',
+    },
+    {
+      authorUsername: 'ryan_startup',
+      content:
+        'Hiring our first engineer next month. Job posting is live — looking for a generalist who loves TypeScript and does not mind wearing many hats.\n\nDM me if you know someone great.',
     },
   ];
 
@@ -915,6 +1137,171 @@ export class SeedService {
           type: 'paragraph',
           content:
             "Kubernetes is incredibly powerful, but it's not magic. Invest in understanding it deeply, automate everything you can, and respect the complexity. Your on-call rotations will thank you.",
+        },
+      ],
+    },
+    {
+      authorUsername: 'nina_swift',
+      title: 'SwiftUI Architecture Patterns That Scale',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800',
+      isPublished: true,
+      content: [
+        {
+          type: 'paragraph',
+          content:
+            'SwiftUI makes it easy to build UIs quickly, but without structure your codebase becomes unmaintainable fast. Here are the patterns I use on production apps with 100k+ users.',
+        },
+        { type: 'heading', content: 'MVVM with ObservableObject' },
+        {
+          type: 'paragraph',
+          content:
+            'Keep views dumb. ViewModels handle business logic and state. Use @StateObject for ownership and @ObservedObject for injected dependencies.',
+        },
+        { type: 'heading', content: 'Feature Modules' },
+        {
+          type: 'paragraph',
+          content:
+            'Split your app into feature modules (Auth, Feed, Profile). Each module owns its views, view models, and models. Shared code lives in a Core module.',
+        },
+        { type: 'heading', content: 'Conclusion' },
+        {
+          type: 'paragraph',
+          content:
+            'SwiftUI rewards good architecture. Invest early in clear boundaries and your future self will thank you when the app grows.',
+        },
+      ],
+    },
+    {
+      authorUsername: 'david_db',
+      title: 'PostgreSQL Indexing Strategies for High-Traffic Apps',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=800',
+      isPublished: true,
+      content: [
+        {
+          type: 'paragraph',
+          content:
+            'Indexes are the single biggest lever for database performance, but the wrong index can hurt writes and waste disk space. Here is a practical guide based on years of tuning production PostgreSQL.',
+        },
+        { type: 'heading', content: 'B-Tree vs GIN vs GiST' },
+        {
+          type: 'paragraph',
+          content:
+            'B-Tree indexes handle equality and range queries on scalar columns. GIN indexes excel at JSONB and full-text search. GiST is for geometric and custom types. Pick the right tool.',
+        },
+        { type: 'heading', content: 'Partial Indexes' },
+        {
+          type: 'code',
+          content:
+            'CREATE INDEX idx_active_users ON users (email)\n  WHERE is_active = true;',
+        },
+        {
+          type: 'paragraph',
+          content:
+            'Partial indexes are smaller and faster when your queries always filter on the same condition. We use them heavily for soft-deleted records.',
+        },
+        { type: 'heading', content: 'Monitoring Index Usage' },
+        {
+          type: 'paragraph',
+          content:
+            'Query pg_stat_user_indexes regularly. Drop indexes with zero scans — they cost write performance for no benefit.',
+        },
+      ],
+    },
+    {
+      authorUsername: 'olivia_sec',
+      title: 'A Developer-Friendly Guide to OWASP Top 10',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800',
+      isPublished: true,
+      content: [
+        {
+          type: 'paragraph',
+          content:
+            'Security vulnerabilities are not just for security teams. Every developer should understand the OWASP Top 10 and how to prevent these issues in their code.',
+        },
+        { type: 'heading', content: 'Injection Attacks' },
+        {
+          type: 'paragraph',
+          content:
+            'Never concatenate user input into SQL queries. Use parameterized queries or an ORM. Same applies to shell commands and LDAP queries.',
+        },
+        { type: 'heading', content: 'Broken Authentication' },
+        {
+          type: 'paragraph',
+          content:
+            'Use bcrypt or argon2 for password hashing. Implement rate limiting on login endpoints. Rotate refresh tokens. Session fixation is still a real attack vector.',
+        },
+        { type: 'heading', content: 'Security Headers' },
+        {
+          type: 'paragraph',
+          content:
+            'Set Content-Security-Policy, X-Frame-Options, and Strict-Transport-Security. Most frameworks make this easy — there is no excuse to skip them.',
+        },
+      ],
+    },
+    {
+      authorUsername: 'priya_devops',
+      title: 'GitOps in Practice: From Zero to Production',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?w=800',
+      isPublished: true,
+      content: [
+        {
+          type: 'paragraph',
+          content:
+            'GitOps treats Git as the single source of truth for infrastructure and application state. Here is how we adopted it and what we learned along the way.',
+        },
+        { type: 'heading', content: 'The GitOps Loop' },
+        {
+          type: 'paragraph',
+          content:
+            'Developer merges PR → CI builds image → CI updates manifest in Git → Argo CD detects drift → cluster syncs automatically. No kubectl apply from laptops.',
+        },
+        { type: 'heading', content: 'Directory Structure' },
+        {
+          type: 'code',
+          content:
+            'gitops-repo/\n  apps/\n    api/\n      base/\n      overlays/\n        staging/\n        production/\n  infrastructure/\n    monitoring/\n    ingress/',
+        },
+        { type: 'heading', content: 'Rollback Strategy' },
+        {
+          type: 'paragraph',
+          content:
+            'Because every deploy is a Git commit, rollback is git revert + sync. We can roll back to any point in history in under 2 minutes.',
+        },
+      ],
+    },
+    {
+      authorUsername: 'maya_design',
+      title: 'Building Accessible Design Systems from Day One',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1559028012-481c04fa7025?w=800',
+      isPublished: true,
+      content: [
+        {
+          type: 'paragraph',
+          content:
+            'Accessibility is often treated as a polish step, but baking it into your design system from the start saves enormous rework and makes your product usable for everyone.',
+        },
+        { type: 'heading', content: 'Color Contrast Tokens' },
+        {
+          type: 'paragraph',
+          content:
+            'Define semantic color tokens (text-primary, text-muted) with WCAG AA contrast ratios baked in. Designers pick tokens, not raw hex values.',
+        },
+        { type: 'heading', content: 'Focus States' },
+        {
+          type: 'paragraph',
+          content:
+            'Every interactive component needs a visible focus ring. Do not remove outline: none without providing an alternative. Keyboard users depend on it.',
+        },
+        { type: 'heading', content: 'Testing with Real Users' },
+        {
+          type: 'paragraph',
+          content:
+            'Automated tools catch ~30% of issues. Pair axe-core scans with screen reader testing and, when possible, sessions with disabled users.',
         },
       ],
     },
