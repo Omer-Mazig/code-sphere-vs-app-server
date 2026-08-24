@@ -36,6 +36,7 @@ describe('Content HTTP (e2e)', () => {
         meta: expect.objectContaining({
           total: 0,
           page: 1,
+          limit: 20,
           hasNextPage: false,
         }),
       }),
@@ -93,5 +94,41 @@ describe('Content HTTP (e2e)', () => {
       .expect((res) => {
         expect(res.body.errorCode).toBe(ErrorCode.CANNOT_FOLLOW_SELF);
       });
+  });
+
+  it('honors feed limit for the global and author feeds', async () => {
+    const author = await registerVerifiedUser(app, 'feed');
+    const authHeader = bearer(author.session.accessToken);
+
+    for (let index = 0; index < 12; index += 1) {
+      await http(app)
+        .post(`${PREFIX}/posts`)
+        .set(authHeader)
+        .send({ content: `post ${index}` })
+        .expect(201);
+    }
+
+    const defaultFeed = await http(app).get(`${PREFIX}/posts`).expect(200);
+    expect(defaultFeed.body.payload.items).toHaveLength(12);
+    expect(defaultFeed.body.payload.meta.limit).toBe(20);
+    expect(defaultFeed.body.payload.meta.total).toBe(12);
+    expect(defaultFeed.body.payload.meta.hasNextPage).toBe(false);
+
+    const limitedFeed = await http(app)
+      .get(`${PREFIX}/posts`)
+      .query({ limit: 10 })
+      .expect(200);
+    expect(limitedFeed.body.payload.items).toHaveLength(10);
+    expect(limitedFeed.body.payload.meta.limit).toBe(10);
+    expect(limitedFeed.body.payload.meta.total).toBe(12);
+    expect(limitedFeed.body.payload.meta.hasNextPage).toBe(true);
+
+    const authorFeed = await http(app)
+      .get(`${PREFIX}/posts`)
+      .query({ authorId: author.session.user.id, limit: 10 })
+      .expect(200);
+    expect(authorFeed.body.payload.items).toHaveLength(10);
+    expect(authorFeed.body.payload.meta.limit).toBe(10);
+    expect(authorFeed.body.payload.meta.total).toBe(12);
   });
 });

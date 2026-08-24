@@ -10,7 +10,8 @@ import { PostQueryDto } from './dto/post-query.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 
-const DEFAULT_PAGE_SIZE = 3;
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
 
 @Injectable()
 export class PostsService {
@@ -115,15 +116,17 @@ export class PostsService {
   }
 
   async getFeed(query: PostQueryDto, currentUserId?: string) {
-    const { page, authorId } = query;
-    const skip = (page - 1) * DEFAULT_PAGE_SIZE;
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+    const { authorId } = query;
+    const skip = (page - 1) * limit;
 
     const qb = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .orderBy('post.createdAt', 'DESC')
       .skip(skip)
-      .take(DEFAULT_PAGE_SIZE);
+      .take(limit);
 
     if (authorId) {
       qb.where('post.authorId = :authorId', { authorId });
@@ -139,7 +142,7 @@ export class PostsService {
       items: enrichedItems,
       total,
       page,
-      limit: DEFAULT_PAGE_SIZE,
+      limit,
     };
   }
 
