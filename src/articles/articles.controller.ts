@@ -13,6 +13,7 @@ import { ArticlesService } from './articles.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
+import { PaginationQueryDto } from '../common/dto';
 import {
   ArticleDeletedResponseDto,
   ArticleResponseDto,
@@ -37,6 +38,19 @@ export class ArticlesController {
   @ApiStandardErrorResponses()
   list(@Query() query: ArticleQueryDto, @CurrentUser() currentUserId: string) {
     return this.articlesService.list(query, currentUserId);
+  }
+
+  // Must be declared before ":slug" so "suggestions" is not captured as a param
+  @Get('suggestions')
+  @Public()
+  @Paginated()
+  @ApiEnvelopePaginatedOkResponse(ArticleResponseDto)
+  @ApiStandardErrorResponses()
+  getSuggestions(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.articlesService.getSuggestions(query, currentUserId);
   }
 
   @Get(':slug')

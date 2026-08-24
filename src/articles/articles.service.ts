@@ -7,6 +7,7 @@ import { Comment } from '../interactions/entities/comment.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleQueryDto } from './dto/article-query.dto';
+import { PaginationQueryDto } from '../common/dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 
@@ -196,6 +197,72 @@ export class ArticlesService {
     const [articles, total] = await qb.getManyAndCount();
 
     const items = articles.map((article) => this.formatArticle(article));
+    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const enrichedItems = await this.enrichWithCommentCounts(withLikes);
+
+    return { items: enrichedItems, total, page, limit };
+  }
+
+  async getSuggestions(query: PaginationQueryDto, currentUserId?: string) {
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    // Rank published articles by engagement (likes + comments), newest first as tiebreaker
+    const idQb = this.articlesRepository
+      .createQueryBuilder('article')
+      // targetId columns are varchar while article.id is uuid — cast for the join
+      .leftJoin(
+        Like,
+        'articleLike',
+        'articleLike.targetId = CAST(article.id AS TEXT) AND articleLike.targetType = :likeTargetType',
+        { likeTargetType: TargetType.ARTICLE },
+      )
+      .leftJoin(
+        Comment,
+        'articleComment',
+        'articleComment.targetId = CAST(article.id AS TEXT) AND articleComment.targetType = :commentTargetType',
+        { commentTargetType: TargetType.ARTICLE },
+      )
+      .select('article.id', 'id')
+      .where('article.isPublished = :isPublished', { isPublished: true })
+      .groupBy('article.id')
+      .orderBy(
+        'COUNT(DISTINCT articleLike.id) + COUNT(DISTINCT articleComment.id)',
+        'DESC',
+      )
+      .addOrderBy('article.createdAt', 'DESC')
+      .offset(skip)
+      .limit(limit);
+
+    const countQb = this.articlesRepository
+      .createQueryBuilder('article')
+      .where('article.isPublished = :isPublished', { isPublished: true });
+
+    if (currentUserId) {
+      idQb.andWhere('article.authorId <> :currentUserId', { currentUserId });
+      countQb.andWhere('article.authorId <> :currentUserId', { currentUserId });
+    }
+
+    const [idRows, total] = await Promise.all([
+      idQb.getRawMany<{ id: string }>(),
+      countQb.getCount(),
+    ]);
+
+    const ids = idRows.map((row) => row.id);
+    if (ids.length === 0) {
+      return { items: [], total, page, limit };
+    }
+
+    const articles = await this.articlesRepository.find({
+      where: { id: In(ids) },
+      relations: ['author'],
+    });
+    const articlesById = new Map(articles.map((a) => [a.id, a]));
+    const ordered = ids
+      .map((id) => articlesById.get(id))
+      .filter((a): a is Article => a !== undefined);
+
+    const items = ordered.map((article) => this.formatArticle(article));
     const withLikes = await this.enrichWithLikes(items, currentUserId);
     const enrichedItems = await this.enrichWithCommentCounts(withLikes);
 

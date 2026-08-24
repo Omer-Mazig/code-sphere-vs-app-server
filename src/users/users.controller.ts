@@ -16,6 +16,7 @@ import { UserQueryDto } from './dto/user-query.dto';
 import {
   FollowActionResponseDto,
   FollowUserResponseDto,
+  SuggestedUserResponseDto,
   UserProfileResponseDto,
 } from './dto/user-response.dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
@@ -40,6 +41,19 @@ export class UsersController {
   @ApiStandardErrorResponses()
   getMyProfile(@CurrentUser() currentUserId: string) {
     return this.profilesService.getMyProfile(currentUserId);
+  }
+
+  // Must be declared before ":id" so "suggestions" is not captured as a param
+  @Get('suggestions')
+  @Public()
+  @Paginated()
+  @ApiEnvelopePaginatedOkResponse(SuggestedUserResponseDto)
+  @ApiStandardErrorResponses()
+  getSuggestions(
+    @Query() query: UserQueryDto,
+    @CurrentUser() currentUserId: string,
+  ) {
+    return this.followsService.getSuggestedUsers(query, currentUserId);
   }
 
   @Get(':id')

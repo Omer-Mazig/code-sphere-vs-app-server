@@ -70,4 +70,24 @@ export class FollowUserResponseDto {
   followedAt!: string;
 }
 
+export class SuggestedUserResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  displayName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  bio!: string | null;
+
+  @ApiProperty()
+  followersCount!: number;
+}
+
 export class FollowActionResponseDto extends MessageResponseDto {}

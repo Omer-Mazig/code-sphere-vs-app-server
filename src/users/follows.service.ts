@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -123,6 +123,72 @@ export class FollowsService {
     });
 
     return !!follow;
+  }
+
+  async getSuggestedUsers(query: UserQueryDto, currentUserId?: string) {
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    // Exclude the requesting user and anyone they already follow (when authenticated)
+    const applySuggestionFilters = (qb: SelectQueryBuilder<User>) => {
+      qb.where('user.isActive = :isActive', { isActive: true });
+
+      if (currentUserId) {
+        qb.andWhere('user.id <> :currentUserId', { currentUserId });
+        qb.andWhere((outerQb) => {
+          const followedSubQuery = outerQb
+            .subQuery()
+            .select('followed.followingId')
+            .from(Follow, 'followed')
+            .where('followed.followerId = :currentUserId')
+            .getQuery();
+          return `user.id NOT IN ${followedSubQuery}`;
+        });
+      }
+
+      return qb;
+    };
+
+    const rowsQb = applySuggestionFilters(
+      this.usersRepository.createQueryBuilder('user'),
+    )
+      .leftJoin(Follow, 'follow', 'follow.followingId = user.id')
+      .select('user.id', 'id')
+      .addSelect('user.username', 'username')
+      .addSelect('user.displayName', 'displayName')
+      .addSelect('user.avatarUrl', 'avatarUrl')
+      .addSelect('user.bio', 'bio')
+      .addSelect('COUNT(follow.id)', 'followersCount')
+      .groupBy('user.id')
+      .orderBy('COUNT(follow.id)', 'DESC')
+      .addOrderBy('user.createdAt', 'ASC')
+      .offset(skip)
+      .limit(limit);
+
+    const [rows, total] = await Promise.all([
+      rowsQb.getRawMany<{
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+        bio: string | null;
+        followersCount: string;
+      }>(),
+      applySuggestionFilters(
+        this.usersRepository.createQueryBuilder('user'),
+      ).getCount(),
+    ]);
+
+    const items = rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      bio: row.bio,
+      followersCount: Number(row.followersCount),
+    }));
+
+    return { items, total, page, limit };
   }
 
   async getMutualFollowUsers(
