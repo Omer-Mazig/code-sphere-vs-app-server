@@ -18,7 +18,10 @@ export class DevelopmentWaitMiddleware implements NestMiddleware {
     if (!isNaN(waitMs) && waitMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     } else {
-      const delay = Math.random() * 1000 + 500; // 0.5-1.5s
+      const delay =
+        Math.random() < 0.5
+          ? 50 + Math.random() * 100 // 50–150ms → padded to 300
+          : 450 + Math.random() * 350; // 450–800ms → no pad
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
