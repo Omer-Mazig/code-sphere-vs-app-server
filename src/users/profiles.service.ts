@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { toProfileUpdates } from './profile-updates';
 import { UsersService } from './users.service';
 import { FollowsService } from './follows.service';
 import { Post } from '../posts/entities/post.entity';
@@ -59,7 +60,10 @@ export class ProfilesService {
   }
 
   async updateMyProfile(currentUserId: string, dto: UpdateProfileDto) {
-    await this.usersService.updateUser(currentUserId, dto);
+    const updates = toProfileUpdates(dto);
+    if (Object.keys(updates).length > 0) {
+      await this.usersService.updateUser(currentUserId, updates);
+    }
     return this.getMyProfile(currentUserId);
   }
 

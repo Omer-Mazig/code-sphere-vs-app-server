@@ -8,31 +8,51 @@ export class UpdateProfileDto {
   @MaxLength(100)
   displayName?: string;
 
-  @ApiPropertyOptional({ example: 'Full-stack developer' })
+  @ApiPropertyOptional({
+    example: 'Full-stack developer',
+    nullable: true,
+    type: String,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  bio?: string;
+  bio?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    nullable: true,
+    type: String,
+  })
   @IsOptional()
   @IsUrl()
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com' })
+  @ApiPropertyOptional({
+    example: 'https://example.com',
+    nullable: true,
+    type: String,
+  })
   @IsOptional()
   @IsUrl()
-  website?: string;
+  website?: string | null;
 
-  @ApiPropertyOptional({ example: 'johndoe' })
+  @ApiPropertyOptional({
+    example: 'johndoe',
+    nullable: true,
+    type: String,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  github?: string;
+  github?: string | null;
 
-  @ApiPropertyOptional({ example: 'San Francisco, CA' })
+  @ApiPropertyOptional({
+    example: 'San Francisco, CA',
+    nullable: true,
+    type: String,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  location?: string;
+  location?: string | null;
 }

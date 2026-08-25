@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { ProfileFieldUpdates } from './profile-updates';
 
 @Injectable()
 export class UsersService {
@@ -29,7 +30,7 @@ export class UsersService {
     return user;
   }
 
-  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+  async updateUser(userId: string, data: ProfileFieldUpdates): Promise<User> {
     const user = await this.findUserOrFail(userId);
 
     Object.assign(user, data);
