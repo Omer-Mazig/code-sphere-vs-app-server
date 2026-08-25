@@ -20,9 +20,16 @@ export class Post {
   @Column({ type: 'text' })
   content: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  sharedPostId: string | null;
+
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'authorId' })
   author: User;
+
+  @ManyToOne(() => Post, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'sharedPostId' })
+  sharedPost: Post | null;
 
   @CreateDateColumn()
   createdAt: Date;

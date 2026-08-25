@@ -131,4 +131,92 @@ describe('Content HTTP (e2e)', () => {
     expect(authorFeed.body.payload.meta.limit).toBe(10);
     expect(authorFeed.body.payload.meta.total).toBe(12);
   });
+
+  it('records a share and lets a user reshare a post as a new post', async () => {
+    const author = await registerVerifiedUser(app, 'orig');
+    const sharer = await registerVerifiedUser(app, 'shrr');
+    const authorHeader = bearer(author.session.accessToken);
+    const sharerHeader = bearer(sharer.session.accessToken);
+
+    const original = await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(authorHeader)
+      .send({ content: 'please reshare me' })
+      .expect(201);
+    const originalId = original.body.payload.id as string;
+    expect(original.body.payload.sharesCount).toBe(0);
+    expect(original.body.payload.isShared).toBe(false);
+    expect(original.body.payload.sharedPost).toBeNull();
+
+    await http(app)
+      .post(`${PREFIX}/interactions/shares`)
+      .set(sharerHeader)
+      .send({ targetId: originalId, targetType: 'POST' })
+      .expect(201);
+
+    const afterCopy = await http(app)
+      .get(`${PREFIX}/posts/${originalId}`)
+      .set(sharerHeader)
+      .expect(200);
+    expect(afterCopy.body.payload.sharesCount).toBe(1);
+    expect(afterCopy.body.payload.isShared).toBe(true);
+
+    await http(app)
+      .post(`${PREFIX}/interactions/shares`)
+      .set(sharerHeader)
+      .send({ targetId: originalId, targetType: 'POST' })
+      .expect(201);
+
+    const afterSecondCopy = await http(app)
+      .get(`${PREFIX}/posts/${originalId}`)
+      .set(sharerHeader)
+      .expect(200);
+    expect(afterSecondCopy.body.payload.sharesCount).toBe(1);
+
+    const reshare = await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(sharerHeader)
+      .send({ content: 'worth amplifying', sharedPostId: originalId })
+      .expect(201);
+
+    expect(reshare.body.payload.content).toBe('worth amplifying');
+    expect(reshare.body.payload.sharedPost).toEqual(
+      expect.objectContaining({
+        id: originalId,
+        content: 'please reshare me',
+      }),
+    );
+
+    const originalAfterReshare = await http(app)
+      .get(`${PREFIX}/posts/${originalId}`)
+      .set(sharerHeader)
+      .expect(200);
+    expect(originalAfterReshare.body.payload.sharesCount).toBe(1);
+
+    const nested = await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(authorHeader)
+      .send({ sharedPostId: reshare.body.payload.id })
+      .expect(201);
+    expect(nested.body.payload.content).toBe('');
+    expect(nested.body.payload.sharedPost.id).toBe(originalId);
+
+    await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(sharerHeader)
+      .send({})
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+      });
+
+    await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(sharerHeader)
+      .send({ sharedPostId: '00000000-0000-4000-8000-000000000000' })
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.errorCode).toBe(ErrorCode.POST_NOT_FOUND);
+      });
+  });
 });

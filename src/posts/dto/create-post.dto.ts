@@ -1,10 +1,17 @@
-import { IsString, MinLength, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, MaxLength, IsOptional, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePostDto {
-  @ApiProperty({ example: 'Just shipped a new feature!' })
+  @ApiPropertyOptional({ example: 'Just shipped a new feature!' })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(5000)
-  content: string;
+  content?: string;
+
+  @ApiPropertyOptional({
+    description: 'Original post to reshare. Commentary may be empty.',
+  })
+  @IsOptional()
+  @IsUUID()
+  sharedPostId?: string;
 }

@@ -29,6 +29,20 @@ export class PostCommentPreviewResponseDto {
   author!: PostAuthorResponseDto | null;
 }
 
+export class SharedPostPreviewResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  content!: string;
+
+  @ApiProperty({ type: PostAuthorResponseDto, nullable: true })
+  author!: PostAuthorResponseDto | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
 export class PostResponseDto {
   @ApiProperty()
   id!: string;
@@ -48,8 +62,17 @@ export class PostResponseDto {
   @ApiProperty()
   commentsCount!: number;
 
+  @ApiProperty()
+  sharesCount!: number;
+
+  @ApiProperty()
+  isShared!: boolean;
+
   @ApiProperty({ type: PostCommentPreviewResponseDto, nullable: true })
   latestComment!: PostCommentPreviewResponseDto | null;
+
+  @ApiProperty({ type: SharedPostPreviewResponseDto, nullable: true })
+  sharedPost!: SharedPostPreviewResponseDto | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;

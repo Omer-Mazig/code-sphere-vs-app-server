@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
+import { Share } from '../interactions/entities/share.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
@@ -22,15 +23,40 @@ export class PostsService {
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
+    @InjectRepository(Share)
+    private readonly sharesRepository: Repository<Share>,
   ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
+    const content = dto.content?.trim() ?? '';
+    const sharedPostId = dto.sharedPostId;
+
+    if (!content && !sharedPostId) {
+      throw new BusinessException(
+        ErrorCode.VALIDATION_ERROR,
+        'Post requires content or a sharedPostId',
+        'Write something before posting or reshare a post',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    let resolvedSharedPostId: string | null = null;
+    if (sharedPostId) {
+      const original = await this.resolveRootPost(sharedPostId);
+      resolvedSharedPostId = original.id;
+    }
+
     const post = this.postsRepository.create({
       authorId,
-      content: dto.content,
+      content,
+      sharedPostId: resolvedSharedPostId,
     });
 
     await this.postsRepository.save(post);
+
+    if (resolvedSharedPostId) {
+      await this.recordShare(authorId, resolvedSharedPostId);
+    }
 
     return this.getById(post.id, authorId);
   }
@@ -95,7 +121,7 @@ export class PostsService {
   async getById(postId: string, currentUserId?: string) {
     const post = await this.postsRepository.findOne({
       where: { id: postId },
-      relations: ['author'],
+      relations: ['author', 'sharedPost', 'sharedPost.author'],
     });
 
     if (!post) {
@@ -109,8 +135,12 @@ export class PostsService {
 
     const formatted = this.formatPost(post);
     const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withShares] = await this.enrichWithShares(
+      [withLikes],
+      currentUserId,
+    );
     const [withCommentPreview] = await this.enrichWithCommentPreview([
-      withLikes,
+      withShares,
     ]);
     return withCommentPreview;
   }
@@ -124,6 +154,8 @@ export class PostsService {
     const qb = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.sharedPost', 'sharedPost')
+      .leftJoinAndSelect('sharedPost.author', 'sharedPostAuthor')
       .orderBy('post.createdAt', 'DESC')
       .skip(skip)
       .take(limit);
@@ -136,7 +168,8 @@ export class PostsService {
 
     const items = posts.map((post) => this.formatPost(post));
     const withLikes = await this.enrichWithLikes(items, currentUserId);
-    const enrichedItems = await this.enrichWithCommentPreview(withLikes);
+    const withShares = await this.enrichWithShares(withLikes, currentUserId);
+    const enrichedItems = await this.enrichWithCommentPreview(withShares);
 
     return {
       items: enrichedItems,
@@ -147,6 +180,7 @@ export class PostsService {
   }
 
   private formatPost(post: Post) {
+    const shared = post.sharedPost;
     return {
       id: post.id,
       content: post.content,
@@ -158,9 +192,111 @@ export class PostsService {
             avatarUrl: post.author.avatarUrl,
           }
         : null,
+      sharedPost: shared
+        ? {
+            id: shared.id,
+            content: shared.content,
+            author: shared.author
+              ? {
+                  id: shared.author.id,
+                  username: shared.author.username,
+                  displayName: shared.author.displayName,
+                  avatarUrl: shared.author.avatarUrl,
+                }
+              : null,
+            createdAt: shared.createdAt,
+          }
+        : null,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
     };
+  }
+
+  private async resolveRootPost(postId: string): Promise<Post> {
+    const visited = new Set<string>();
+    let current = await this.postsRepository.findOne({
+      where: { id: postId },
+    });
+
+    if (!current) {
+      throw new BusinessException(
+        ErrorCode.POST_NOT_FOUND,
+        `Post with id "${postId}" not found`,
+        'Post not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    while (current.sharedPostId && !visited.has(current.id)) {
+      visited.add(current.id);
+      const next = await this.postsRepository.findOne({
+        where: { id: current.sharedPostId },
+      });
+      if (!next) {
+        break;
+      }
+      current = next;
+    }
+
+    return current;
+  }
+
+  private async recordShare(userId: string, targetId: string) {
+    const existing = await this.sharesRepository.findOne({
+      where: { userId, targetId, targetType: TargetType.POST },
+    });
+    if (existing) {
+      return;
+    }
+
+    await this.sharesRepository.save(
+      this.sharesRepository.create({
+        userId,
+        targetId,
+        targetType: TargetType.POST,
+      }),
+    );
+  }
+
+  private async enrichWithShares<T extends { id: string }>(
+    items: T[],
+    currentUserId?: string,
+  ): Promise<(T & { sharesCount: number; isShared: boolean })[]> {
+    if (items.length === 0) return [];
+
+    const ids = items.map((i) => i.id);
+
+    const countsRaw: { targetId: string; count: string }[] =
+      await this.sharesRepository
+        .createQueryBuilder('share')
+        .select('share.targetId', 'targetId')
+        .addSelect('COUNT(*)', 'count')
+        .where('share.targetId IN (:...ids)', { ids })
+        .andWhere('share.targetType = :type', { type: TargetType.POST })
+        .groupBy('share.targetId')
+        .getRawMany();
+
+    const countMap = new Map(
+      countsRaw.map((c) => [c.targetId, Number(c.count)]),
+    );
+
+    let sharedSet = new Set<string>();
+    if (currentUserId) {
+      const userShares = await this.sharesRepository.find({
+        where: {
+          userId: currentUserId,
+          targetId: In(ids),
+          targetType: TargetType.POST,
+        },
+      });
+      sharedSet = new Set(userShares.map((s) => s.targetId));
+    }
+
+    return items.map((item) => ({
+      ...item,
+      sharesCount: countMap.get(item.id) ?? 0,
+      isShared: sharedSet.has(item.id),
+    }));
   }
 
   private async enrichWithLikes<T extends { id: string }>(
