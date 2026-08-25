@@ -33,6 +33,7 @@ import {
   NotificationsQueryDto,
   PostCommentedNotificationPayloadDto,
   PostLikedNotificationPayloadDto,
+  UserMentionedNotificationPayloadDto,
   StreamTokenResponseDto,
   StreamTokenQueryDto,
   UnreadCountResponseDto,
@@ -45,6 +46,7 @@ import { NotificationsService } from './notifications.service';
   PostCommentedNotificationPayloadDto,
   CommentRepliedNotificationPayloadDto,
   NewFollowerNotificationPayloadDto,
+  UserMentionedNotificationPayloadDto,
   NotificationStreamPingEventDto,
 )
 @Controller('notifications')

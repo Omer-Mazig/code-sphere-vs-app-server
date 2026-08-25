@@ -14,6 +14,7 @@ export enum NotificationType {
   POST_COMMENTED = 'POST_COMMENTED',
   COMMENT_REPLIED = 'COMMENT_REPLIED',
   NEW_FOLLOWER = 'NEW_FOLLOWER',
+  USER_MENTIONED = 'USER_MENTIONED',
 }
 
 export enum NotificationTargetType {

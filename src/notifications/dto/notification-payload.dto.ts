@@ -119,8 +119,43 @@ export class NewFollowerNotificationPayloadDto {
   createdAt!: string;
 }
 
+export class UserMentionedNotificationPayloadDto {
+  @ApiProperty({ enum: [NotificationType.USER_MENTIONED] })
+  type!: NotificationType.USER_MENTIONED;
+
+  @ApiProperty()
+  actorId!: string;
+
+  @ApiProperty()
+  actorName!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  actorAvatarUrl!: string | null;
+
+  @ApiProperty({
+    enum: [NotificationTargetType.POST, NotificationTargetType.ARTICLE],
+  })
+  targetType!: NotificationTargetType.POST | NotificationTargetType.ARTICLE;
+
+  @ApiPropertyOptional()
+  postId?: string;
+
+  @ApiPropertyOptional()
+  articleSlug?: string;
+
+  @ApiPropertyOptional()
+  commentId?: string;
+
+  @ApiProperty()
+  excerpt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
 export type NotificationPayload =
   | PostLikedNotificationPayloadDto
   | PostCommentedNotificationPayloadDto
   | CommentRepliedNotificationPayloadDto
-  | NewFollowerNotificationPayloadDto;
+  | NewFollowerNotificationPayloadDto
+  | UserMentionedNotificationPayloadDto;

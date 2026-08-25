@@ -13,6 +13,7 @@ import {
   PostCommentedEvent,
   PostLikedEvent,
   UserFollowedEvent,
+  UserMentionedEvent,
 } from './events/notification-domain-events';
 import {
   NotificationTargetType,
@@ -223,6 +224,61 @@ export class NotificationsListener {
         createdAt: new Date().toISOString(),
       },
     );
+  }
+
+  @OnEvent(NotificationDomainEventName.USER_MENTIONED)
+  async handleUserMentioned(event: UserMentionedEvent) {
+    const usernames = Array.from(
+      new Set(event.usernames.map((username) => username.toLowerCase())),
+    );
+    if (usernames.length === 0) {
+      return;
+    }
+
+    const [actor, mentionedUsers] = await Promise.all([
+      this.usersRepository.findOne({
+        where: { id: event.actorId },
+        select: ['id', 'username', 'displayName', 'avatarUrl'],
+      }),
+      this.usersRepository
+        .createQueryBuilder('user')
+        .select(['user.id', 'user.username'])
+        .where('LOWER(user.username) IN (:...usernames)', { usernames })
+        .getMany(),
+    ]);
+
+    if (!actor) {
+      this.logger.warn(
+        `Skip USER_MENTIONED notification (actor="${event.actorId}")`,
+      );
+      return;
+    }
+
+    const excerpt = this.toExcerpt(event.excerpt);
+
+    for (const mentionedUser of mentionedUsers) {
+      if (mentionedUser.id === actor.id) {
+        continue;
+      }
+
+      await this.notificationsService.createNotification(
+        mentionedUser.id,
+        NotificationType.USER_MENTIONED,
+        event.targetType,
+        {
+          type: NotificationType.USER_MENTIONED,
+          actorId: actor.id,
+          actorName: actor.displayName ?? actor.username,
+          actorAvatarUrl: actor.avatarUrl,
+          targetType: event.targetType,
+          postId: event.postId,
+          articleSlug: event.articleSlug,
+          commentId: event.commentId,
+          excerpt,
+          createdAt: new Date().toISOString(),
+        },
+      );
+    }
   }
 
   private toExcerpt(value: string) {

@@ -1,10 +1,12 @@
 import { TargetType } from '../../interactions/entities/like.entity';
+import { NotificationTargetType } from '../notifications.entity';
 
 export enum NotificationDomainEventName {
   POST_LIKED = 'notification.post_liked',
   POST_COMMENTED = 'notification.post_commented',
   COMMENT_REPLIED = 'notification.comment_replied',
   USER_FOLLOWED = 'notification.user_followed',
+  USER_MENTIONED = 'notification.user_mentioned',
 }
 
 export type PostLikedEvent = {
@@ -29,4 +31,14 @@ export type CommentRepliedEvent = {
 export type UserFollowedEvent = {
   followerId: string;
   followeeId: string;
+};
+
+export type UserMentionedEvent = {
+  actorId: string;
+  usernames: string[];
+  targetType: NotificationTargetType.POST | NotificationTargetType.ARTICLE;
+  postId?: string;
+  articleSlug?: string;
+  commentId?: string;
+  excerpt: string;
 };

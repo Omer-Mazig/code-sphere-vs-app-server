@@ -9,7 +9,15 @@ function createListener() {
   const postsRepository = { findOne: jest.fn() };
   const commentsRepository = { findOne: jest.fn() };
   const articlesRepository = { findOne: jest.fn() };
-  const usersRepository = { findOne: jest.fn() };
+  const queryBuilder = {
+    select: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    getMany: jest.fn().mockResolvedValue([]),
+  };
+  const usersRepository = {
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn(() => queryBuilder),
+  };
   const notificationsService = { createNotification: jest.fn() };
 
   const listener = new NotificationsListener(
@@ -24,6 +32,7 @@ function createListener() {
     listener,
     postsRepository,
     usersRepository,
+    queryBuilder,
     notificationsService,
   };
 }
@@ -126,6 +135,64 @@ describe('NotificationsListener', () => {
     await listener.handleUserFollowed({
       followerId: 'user-1',
       followeeId: 'user-1',
+    });
+
+    expect(notificationsService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('notifies each mentioned user once and skips the actor', async () => {
+    const { listener, usersRepository, queryBuilder, notificationsService } =
+      createListener();
+    usersRepository.findOne.mockResolvedValue({
+      id: 'author-1',
+      username: 'ada',
+      displayName: 'Ada',
+      avatarUrl: null,
+    });
+    queryBuilder.getMany.mockResolvedValue([
+      { id: 'author-1', username: 'ada' },
+      { id: 'grace-1', username: 'grace' },
+    ]);
+
+    await listener.handleUserMentioned({
+      actorId: 'author-1',
+      usernames: ['grace', 'grace', 'ada'],
+      targetType: NotificationTargetType.POST,
+      postId: 'post-1',
+      excerpt: 'hello @grace @ada',
+    });
+
+    expect(notificationsService.createNotification).toHaveBeenCalledTimes(1);
+    expect(notificationsService.createNotification).toHaveBeenCalledWith(
+      'grace-1',
+      NotificationType.USER_MENTIONED,
+      NotificationTargetType.POST,
+      expect.objectContaining({
+        type: NotificationType.USER_MENTIONED,
+        actorId: 'author-1',
+        postId: 'post-1',
+        excerpt: 'hello @grace @ada',
+      }),
+    );
+  });
+
+  it('skips unknown usernames', async () => {
+    const { listener, usersRepository, queryBuilder, notificationsService } =
+      createListener();
+    usersRepository.findOne.mockResolvedValue({
+      id: 'author-1',
+      username: 'ada',
+      displayName: 'Ada',
+      avatarUrl: null,
+    });
+    queryBuilder.getMany.mockResolvedValue([]);
+
+    await listener.handleUserMentioned({
+      actorId: 'author-1',
+      usernames: ['nobody'],
+      targetType: NotificationTargetType.POST,
+      postId: 'post-1',
+      excerpt: 'hello @nobody',
     });
 
     expect(notificationsService.createNotification).not.toHaveBeenCalled();

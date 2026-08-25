@@ -10,6 +10,7 @@ import {
   NotificationPayload,
   PostCommentedNotificationPayloadDto,
   PostLikedNotificationPayloadDto,
+  UserMentionedNotificationPayloadDto,
 } from './notification-payload.dto';
 
 @ApiExtraModels(
@@ -17,6 +18,7 @@ import {
   PostCommentedNotificationPayloadDto,
   CommentRepliedNotificationPayloadDto,
   NewFollowerNotificationPayloadDto,
+  UserMentionedNotificationPayloadDto,
 )
 export class NotificationResponseDto {
   @ApiProperty()
@@ -38,6 +40,7 @@ export class NotificationResponseDto {
       { $ref: getSchemaPath(PostCommentedNotificationPayloadDto) },
       { $ref: getSchemaPath(CommentRepliedNotificationPayloadDto) },
       { $ref: getSchemaPath(NewFollowerNotificationPayloadDto) },
+      { $ref: getSchemaPath(UserMentionedNotificationPayloadDto) },
     ],
     discriminator: {
       propertyName: 'type',
@@ -46,6 +49,7 @@ export class NotificationResponseDto {
         POST_COMMENTED: getSchemaPath(PostCommentedNotificationPayloadDto),
         COMMENT_REPLIED: getSchemaPath(CommentRepliedNotificationPayloadDto),
         NEW_FOLLOWER: getSchemaPath(NewFollowerNotificationPayloadDto),
+        USER_MENTIONED: getSchemaPath(UserMentionedNotificationPayloadDto),
       },
     },
   })

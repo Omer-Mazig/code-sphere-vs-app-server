@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
@@ -10,6 +11,9 @@ import { ArticleQueryDto } from './dto/article-query.dto';
 import { PaginationQueryDto } from '../common/dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { flattenRichText, newlyMentionedUsernames } from '../common/utils';
+import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
+import { NotificationTargetType } from '../notifications/notifications.entity';
 
 @Injectable()
 export class ArticlesService {
@@ -20,6 +24,7 @@ export class ArticlesService {
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(authorId: string, dto: CreateArticleDto) {
@@ -49,6 +54,14 @@ export class ArticlesService {
 
     await this.articlesRepository.save(article);
 
+    await this.emitMentionNotifications({
+      actorId: authorId,
+      nextContent: flattenRichText(article.content),
+      previousContent: '',
+      isVisible: article.isPublished,
+      articleSlug: article.slug,
+    });
+
     return this.getById(article.id, authorId);
   }
 
@@ -75,6 +88,16 @@ export class ArticlesService {
       );
     }
 
+    const previousPublished = article.isPublished;
+    const previousContent = flattenRichText(article.content);
+    const definedUpdates = Object.fromEntries(
+      Object.entries(dto).filter(([, value]) => value !== undefined),
+    ) as UpdateArticleDto;
+    const nextPublished = definedUpdates.isPublished ?? article.isPublished;
+    const nextContent = flattenRichText(
+      definedUpdates.content ?? article.content,
+    );
+
     if (dto.title && dto.title !== article.title) {
       const newSlug = this.generateSlug(dto.title);
       const existingSlug = await this.articlesRepository.findOne({
@@ -93,8 +116,16 @@ export class ArticlesService {
       article.slug = newSlug;
     }
 
-    Object.assign(article, dto);
+    Object.assign(article, definedUpdates);
     await this.articlesRepository.save(article);
+
+    await this.emitMentionNotifications({
+      actorId: userId,
+      nextContent,
+      previousContent: previousPublished ? previousContent : '',
+      isVisible: nextPublished,
+      articleSlug: article.slug,
+    });
 
     return this.getById(article.id, userId);
   }
@@ -368,6 +399,37 @@ export class ArticlesService {
         .replace(/^-|-$/g, '') +
       '-' +
       Date.now().toString(36)
+    );
+  }
+
+  private async emitMentionNotifications(params: {
+    actorId: string;
+    nextContent: string;
+    previousContent: string;
+    isVisible: boolean;
+    articleSlug: string;
+  }) {
+    if (!params.isVisible) {
+      return;
+    }
+
+    const usernames = newlyMentionedUsernames(
+      params.nextContent,
+      params.previousContent,
+    );
+    if (usernames.length === 0) {
+      return;
+    }
+
+    await this.eventEmitter.emitAsync(
+      NotificationDomainEventName.USER_MENTIONED,
+      {
+        actorId: params.actorId,
+        usernames,
+        targetType: NotificationTargetType.ARTICLE,
+        articleSlug: params.articleSlug,
+        excerpt: params.nextContent,
+      },
     );
   }
 }

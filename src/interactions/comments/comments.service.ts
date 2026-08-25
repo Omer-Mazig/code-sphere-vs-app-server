@@ -14,12 +14,12 @@ import {
   UpdateCommentDto,
 } from '../dto';
 import { PaginationQueryDto } from '../../common/dto';
+import { extractMentionedUsernames } from '../../common/utils';
 import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { InteractionTargetValidatorService } from '../shared';
 import { NotificationDomainEventName } from '../../notifications/events/notification-domain-events';
-
-const USERNAME_MENTION_REGEX = /@([a-zA-Z0-9_-]{3,30})/g;
+import { NotificationTargetType } from '../../notifications/notifications.entity';
 
 @Injectable()
 export class CommentsService {
@@ -74,23 +74,54 @@ export class CommentsService {
 
     await this.commentsRepository.save(comment);
 
+    const mentionedUserIds = await this.resolveMentionedUserIds(
+      dto.content,
+      currentUserId,
+    );
+    await this.emitMentionNotifications({
+      actorId: currentUserId,
+      content: dto.content,
+      targetId: dto.targetId,
+      targetType: dto.targetType,
+      commentId: comment.id,
+    });
+
     if (dto.parentId) {
-      this.eventEmitter.emit(NotificationDomainEventName.COMMENT_REPLIED, {
-        targetId: dto.targetId,
-        targetType: dto.targetType,
-        parentCommentId: dto.parentId,
-        replyCommentId: comment.id,
-        replierId: currentUserId,
+      const parent = await this.commentsRepository.findOne({
+        where: { id: dto.parentId },
+        select: ['id', 'authorId'],
       });
+      if (
+        parent &&
+        parent.authorId !== currentUserId &&
+        !mentionedUserIds.has(parent.authorId)
+      ) {
+        this.eventEmitter.emit(NotificationDomainEventName.COMMENT_REPLIED, {
+          targetId: dto.targetId,
+          targetType: dto.targetType,
+          parentCommentId: dto.parentId,
+          replyCommentId: comment.id,
+          replierId: currentUserId,
+        });
+      }
     } else if (dto.targetType === TargetType.POST) {
-      this.eventEmitter.emit(NotificationDomainEventName.POST_COMMENTED, {
-        postId: dto.targetId,
-        commentId: comment.id,
-        commenterId: currentUserId,
-      });
+      const postAuthorId = await this.getTargetAuthorId(
+        dto.targetId,
+        dto.targetType,
+      );
+      if (
+        postAuthorId &&
+        postAuthorId !== currentUserId &&
+        !mentionedUserIds.has(postAuthorId)
+      ) {
+        this.eventEmitter.emit(NotificationDomainEventName.POST_COMMENTED, {
+          postId: dto.targetId,
+          commentId: comment.id,
+          commenterId: currentUserId,
+        });
+      }
     }
 
-    // TODO: trigger mention notifications here (notify mentioned users with author context).
     return this.getCommentById(comment.id, currentUserId);
   }
 
@@ -398,17 +429,20 @@ export class CommentsService {
 
     const mentionUsernames = Array.from(
       new Set(
-        items.flatMap((item) => this.extractMentionedUsernames(item.content)),
+        items.flatMap((item) => extractMentionedUsernames(item.content)),
       ),
     );
     const mentionUsers = mentionUsernames.length
-      ? await this.usersRepository.find({
-          where: { username: In(mentionUsernames) },
-          select: ['id', 'username', 'displayName', 'avatarUrl'],
-        })
+      ? await this.usersRepository
+          .createQueryBuilder('user')
+          .select(['user.id', 'user.username', 'user.displayName', 'user.avatarUrl'])
+          .where('LOWER(user.username) IN (:...usernames)', {
+            usernames: mentionUsernames.map((username) => username.toLowerCase()),
+          })
+          .getMany()
       : [];
     const mentionUserMap = new Map(
-      mentionUsers.map((user) => [user.username, user]),
+      mentionUsers.map((user) => [user.username.toLowerCase(), user]),
     );
 
     return items.map((item) => ({
@@ -416,8 +450,8 @@ export class CommentsService {
       likesCount: likesCountMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
       repliesCount: repliesCountMap.get(item.id) ?? 0,
-      mentionedUsers: this.extractMentionedUsernames(item.content)
-        .map((username) => mentionUserMap.get(username))
+      mentionedUsers: extractMentionedUsernames(item.content)
+        .map((username) => mentionUserMap.get(username.toLowerCase()))
         .filter((user): user is User => !!user)
         .map((user) => ({
           id: user.id,
@@ -435,7 +469,7 @@ export class CommentsService {
     targetType: TargetType,
     content: string,
   ) {
-    const usernames = this.extractMentionedUsernames(content);
+    const usernames = extractMentionedUsernames(content);
     if (usernames.length === 0) {
       return;
     }
@@ -464,15 +498,22 @@ export class CommentsService {
       allowedUserIds.add(user.id);
     }
 
-    const users = await this.usersRepository.find({
-      where: { username: In(usernames) },
-      select: ['id', 'username'],
-    });
-    const usernameToUser = new Map(users.map((user) => [user.username, user]));
+    const users = usernames.length
+      ? await this.usersRepository
+          .createQueryBuilder('user')
+          .select(['user.id', 'user.username'])
+          .where('LOWER(user.username) IN (:...usernames)', {
+            usernames: usernames.map((username) => username.toLowerCase()),
+          })
+          .getMany()
+      : [];
+    const usernameToUser = new Map(
+      users.map((user) => [user.username.toLowerCase(), user]),
+    );
 
     // Unknown @tokens are treated as plain text and are allowed.
     const blockedUsernames = usernames.filter((username) => {
-      const user = usernameToUser.get(username);
+      const user = usernameToUser.get(username.toLowerCase());
       if (!user) return false;
       if (user.id === currentUserId) return true;
       return !allowedUserIds.has(user.id);
@@ -641,16 +682,63 @@ export class CommentsService {
     });
   }
 
-  private extractMentionedUsernames(content: string): string[] {
-    const usernames = new Set<string>();
-    let match = USERNAME_MENTION_REGEX.exec(content);
-
-    while (match) {
-      usernames.add(match[1]);
-      match = USERNAME_MENTION_REGEX.exec(content);
+  private async resolveMentionedUserIds(
+    content: string,
+    actorId: string,
+  ): Promise<Set<string>> {
+    const usernames = extractMentionedUsernames(content);
+    if (usernames.length === 0) {
+      return new Set();
     }
 
-    USERNAME_MENTION_REGEX.lastIndex = 0;
-    return Array.from(usernames);
+    const users = await this.usersRepository
+      .createQueryBuilder('user')
+      .select(['user.id', 'user.username'])
+      .where('LOWER(user.username) IN (:...usernames)', {
+        usernames: usernames.map((username) => username.toLowerCase()),
+      })
+      .getMany();
+
+    return new Set(
+      users.filter((user) => user.id !== actorId).map((user) => user.id),
+    );
+  }
+
+  private async emitMentionNotifications(params: {
+    actorId: string;
+    content: string;
+    targetId: string;
+    targetType: TargetType;
+    commentId: string;
+  }) {
+    const usernames = extractMentionedUsernames(params.content);
+    if (usernames.length === 0) {
+      return;
+    }
+
+    const article =
+      params.targetType === TargetType.ARTICLE
+        ? await this.articlesRepository.findOne({
+            where: { id: params.targetId },
+            select: ['id', 'slug'],
+          })
+        : null;
+
+    await this.eventEmitter.emitAsync(
+      NotificationDomainEventName.USER_MENTIONED,
+      {
+        actorId: params.actorId,
+        usernames,
+        targetType:
+          params.targetType === TargetType.ARTICLE
+            ? NotificationTargetType.ARTICLE
+            : NotificationTargetType.POST,
+        postId:
+          params.targetType === TargetType.POST ? params.targetId : undefined,
+        articleSlug: article?.slug,
+        commentId: params.commentId,
+        excerpt: params.content,
+      },
+    );
   }
 }

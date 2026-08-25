@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { Comment } from '../interactions/entities/comment.entity';
@@ -10,6 +11,9 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { newlyMentionedUsernames } from '../common/utils';
+import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
+import { NotificationTargetType } from '../notifications/notifications.entity';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -25,6 +29,7 @@ export class PostsService {
     private readonly commentsRepository: Repository<Comment>,
     @InjectRepository(Share)
     private readonly sharesRepository: Repository<Share>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
@@ -58,6 +63,8 @@ export class PostsService {
       await this.recordShare(authorId, resolvedSharedPostId);
     }
 
+    await this.emitMentionNotifications(authorId, content, '', post.id);
+
     return this.getById(post.id, authorId);
   }
 
@@ -84,8 +91,16 @@ export class PostsService {
       );
     }
 
+    const previousContent = post.content;
     post.content = dto.content;
     await this.postsRepository.save(post);
+
+    await this.emitMentionNotifications(
+      userId,
+      post.content,
+      previousContent,
+      post.id,
+    );
 
     return this.getById(post.id, userId);
   }
@@ -399,5 +414,28 @@ export class PostsService {
           : null,
       };
     });
+  }
+
+  private async emitMentionNotifications(
+    actorId: string,
+    nextContent: string,
+    previousContent: string,
+    postId: string,
+  ) {
+    const usernames = newlyMentionedUsernames(nextContent, previousContent);
+    if (usernames.length === 0) {
+      return;
+    }
+
+    await this.eventEmitter.emitAsync(
+      NotificationDomainEventName.USER_MENTIONED,
+      {
+        actorId,
+        usernames,
+        targetType: NotificationTargetType.POST,
+        postId,
+        excerpt: nextContent,
+      },
+    );
   }
 }
