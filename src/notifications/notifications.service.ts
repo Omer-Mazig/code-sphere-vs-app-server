@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { NotificationPayload } from './dto';
 import {
   Notification,
   NotificationTargetType,
@@ -93,13 +94,13 @@ export class NotificationsService {
     userId: string,
     type: NotificationType,
     targetType: NotificationTargetType,
-    payload: Record<string, unknown>,
+    payload: NotificationPayload,
   ) {
     const notification = this.notificationsRepository.create({
       userId,
       type,
       targetType,
-      payload,
+      payload: payload as unknown as Record<string, unknown>,
       isRead: false,
       readAt: null,
     });

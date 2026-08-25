@@ -1,14 +1,23 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, getSchemaPath } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
 import {
   NotificationTargetType,
   NotificationType,
 } from '../notifications.entity';
+import {
+  CommentRepliedNotificationPayloadDto,
+  NewFollowerNotificationPayloadDto,
+  NotificationPayload,
+  PostCommentedNotificationPayloadDto,
+  PostLikedNotificationPayloadDto,
+} from './notification-payload.dto';
 
-export class NotificationPayloadDto {
-  [key: string]: unknown;
-}
-
+@ApiExtraModels(
+  PostLikedNotificationPayloadDto,
+  PostCommentedNotificationPayloadDto,
+  CommentRepliedNotificationPayloadDto,
+  NewFollowerNotificationPayloadDto,
+)
 export class NotificationResponseDto {
   @ApiProperty()
   id!: string;
@@ -24,10 +33,23 @@ export class NotificationResponseDto {
   targetType!: NotificationTargetType | null;
 
   @ApiProperty({
-    type: 'object',
-    additionalProperties: true,
+    oneOf: [
+      { $ref: getSchemaPath(PostLikedNotificationPayloadDto) },
+      { $ref: getSchemaPath(PostCommentedNotificationPayloadDto) },
+      { $ref: getSchemaPath(CommentRepliedNotificationPayloadDto) },
+      { $ref: getSchemaPath(NewFollowerNotificationPayloadDto) },
+    ],
+    discriminator: {
+      propertyName: 'type',
+      mapping: {
+        POST_LIKED: getSchemaPath(PostLikedNotificationPayloadDto),
+        POST_COMMENTED: getSchemaPath(PostCommentedNotificationPayloadDto),
+        COMMENT_REPLIED: getSchemaPath(CommentRepliedNotificationPayloadDto),
+        NEW_FOLLOWER: getSchemaPath(NewFollowerNotificationPayloadDto),
+      },
+    },
   })
-  payload!: NotificationPayloadDto;
+  payload!: NotificationPayload;
 
   @ApiProperty()
   isRead!: boolean;

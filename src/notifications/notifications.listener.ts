@@ -178,7 +178,10 @@ export class NotificationsListener {
         actorId: actor.id,
         actorName: actor.displayName ?? actor.username,
         actorAvatarUrl: actor.avatarUrl,
-        targetType: parentComment.targetType,
+        targetType:
+          parentComment.targetType === TargetType.ARTICLE
+            ? NotificationTargetType.ARTICLE
+            : NotificationTargetType.POST,
         targetId: parentComment.targetId,
         articleSlug: article?.slug,
         parentCommentId: parentComment.id,
