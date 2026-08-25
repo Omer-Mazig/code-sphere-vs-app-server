@@ -4,7 +4,11 @@ import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
-import type { EmailProvider, VerificationEmailPayload } from '../email.types';
+import type {
+  EmailProvider,
+  PasswordResetEmailPayload,
+  VerificationEmailPayload,
+} from '../email.types';
 
 @Injectable()
 export class SmtpEmailProvider implements EmailProvider {
@@ -52,6 +56,29 @@ export class SmtpEmailProvider implements EmailProvider {
         ErrorCode.INTERNAL_SERVER_ERROR,
         `Failed to send verification email to "${payload.to}": ${message}`,
         'Unable to send verification email. Please try again later.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async sendPasswordResetEmail(
+    payload: PasswordResetEmailPayload,
+  ): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: this.from,
+        to: payload.to,
+        subject: 'Reset your CodeSphere password',
+        text: `Reset your CodeSphere password by opening this link:\n${payload.resetUrl}\n\nThis link expires in 1 hour. If you did not request a reset, you can ignore this email.`,
+        html: `<p>Reset your CodeSphere password:</p><p><a href="${payload.resetUrl}">Choose a new password</a></p><p>This link expires in 1 hour. If you did not request a reset, you can ignore this email.</p>`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send password reset email: ${message}`);
+      throw new BusinessException(
+        ErrorCode.INTERNAL_SERVER_ERROR,
+        `Failed to send password reset email to "${payload.to}": ${message}`,
+        'Unable to send password reset email. Please try again later.',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

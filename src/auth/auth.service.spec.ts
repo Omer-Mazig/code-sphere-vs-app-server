@@ -26,6 +26,8 @@ function buildUser(overrides: Partial<User> = {}): User {
     emailVerified: true,
     emailVerificationTokenHash: null,
     emailVerificationExpiresAt: null,
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
     avatarUrl: null,
     bio: null,
     website: null,
@@ -70,8 +72,13 @@ function createService() {
   };
   const emailService = {
     sendVerificationEmail: jest.fn(),
+    sendPasswordResetEmail: jest.fn(),
     buildVerificationUrl: jest.fn(
       (token: string) => `http://localhost:5173/auth/verify-email?token=${token}`,
+    ),
+    buildPasswordResetUrl: jest.fn(
+      (token: string) =>
+        `http://localhost:5173/auth/reset-password?token=${token}`,
     ),
     shouldExposeVerificationUrl: jest.fn(() => true),
   };
@@ -246,6 +253,80 @@ describe('AuthService', () => {
       expect(rotated.refreshToken).not.toBe(first.refreshToken);
       expect(stored.revokedAt).toBeInstanceOf(Date);
       expect(stored.replacedByTokenId).toBe('rt-1');
+    });
+  });
+
+  describe('forgotPassword / resetPassword', () => {
+    it('always returns a generic message and does not reveal missing emails', async () => {
+      const { service, usersRepository, emailService } = createService();
+      usersRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.forgotPassword('ghost@example.com')).resolves.toEqual(
+        {
+          message: expect.stringContaining('If an account exists'),
+        },
+      );
+      expect(emailService.sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+
+    it('emails a reset link for an active user and exposes the URL in non-prod', async () => {
+      const { service, usersRepository, emailService } = createService();
+      usersRepository.findOne.mockResolvedValue(buildUser());
+
+      const result = await service.forgotPassword('ada@example.com');
+
+      expect(emailService.sendPasswordResetEmail).toHaveBeenCalled();
+      expect(usersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          passwordResetTokenHash: expect.any(String),
+          passwordResetExpiresAt: expect.any(Date),
+        }),
+      );
+      expect(result).toHaveProperty('resetUrl');
+    });
+
+    it('rejects invalid and expired reset tokens, then updates password and revokes sessions', async () => {
+      const { service, usersRepository, updateExecute } = createService();
+
+      await expect(service.resetPassword('', 'Password1')).rejects.toMatchObject(
+        {
+          errorCode: ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+        },
+      );
+
+      usersRepository.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.resetPassword('missing', 'Password1'),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+      });
+
+      usersRepository.findOne.mockResolvedValueOnce(
+        buildUser({
+          passwordResetTokenHash: hashToken('expired-token'),
+          passwordResetExpiresAt: new Date(Date.now() - 1000),
+        }),
+      );
+      await expect(
+        service.resetPassword('expired-token', 'Password1'),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.PASSWORD_RESET_TOKEN_EXPIRED,
+      });
+
+      const user = buildUser({
+        passwordResetTokenHash: hashToken('valid-token'),
+        passwordResetExpiresAt: new Date(Date.now() + 60_000),
+      });
+      usersRepository.findOne.mockResolvedValueOnce(user);
+
+      await expect(
+        service.resetPassword('valid-token', 'Password2'),
+      ).resolves.toMatchObject({
+        message: expect.stringContaining('Password updated'),
+      });
+      expect(user.passwordResetTokenHash).toBeNull();
+      expect(user.passwordResetExpiresAt).toBeNull();
+      expect(updateExecute).toHaveBeenCalled();
     });
   });
 });

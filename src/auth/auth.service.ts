@@ -22,8 +22,11 @@ type TokenBundle = {
 };
 
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const GENERIC_VERIFICATION_SENT_MESSAGE =
   'If an account exists and is unverified, a new email has been sent.';
+const GENERIC_PASSWORD_RESET_SENT_MESSAGE =
+  'If an account exists for that email, a password reset link has been sent.';
 
 @Injectable()
 export class AuthService {
@@ -263,6 +266,72 @@ export class AuthService {
     };
   }
 
+  async forgotPassword(email: string) {
+    const user = await this.usersRepository.findOne({ where: { email } });
+
+    if (!user || !user.isActive) {
+      return { message: GENERIC_PASSWORD_RESET_SENT_MESSAGE };
+    }
+
+    const reset = this.createPasswordReset();
+    user.passwordResetTokenHash = reset.tokenHash;
+    user.passwordResetExpiresAt = reset.expiresAt;
+    await this.usersRepository.save(user);
+
+    const resetUrl = this.emailService.buildPasswordResetUrl(reset.token);
+    await this.emailService.sendPasswordResetEmail(user.email, resetUrl);
+
+    return {
+      message: GENERIC_PASSWORD_RESET_SENT_MESSAGE,
+      ...(this.emailService.shouldExposeVerificationUrl() && { resetUrl }),
+    };
+  }
+
+  async resetPassword(token: string, password: string) {
+    if (!token) {
+      throw new BusinessException(
+        ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+        'Password reset token missing',
+        'This reset link is invalid',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const tokenHash = this.hashToken(token);
+    const user = await this.usersRepository.findOne({
+      where: { passwordResetTokenHash: tokenHash },
+    });
+
+    if (!user) {
+      throw new BusinessException(
+        ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+        'Password reset token not found',
+        'This reset link is invalid or has already been used',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (
+      !user.passwordResetExpiresAt ||
+      user.passwordResetExpiresAt <= new Date()
+    ) {
+      throw new BusinessException(
+        ErrorCode.PASSWORD_RESET_TOKEN_EXPIRED,
+        `Password reset token expired for user "${user.id}"`,
+        'This reset link has expired. Request a new one.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    await this.usersRepository.save(user);
+    await this.revokeAllTokensForUser(user.id);
+
+    return { message: 'Password updated. You can sign in with your new password.' };
+  }
+
   async refresh(
     refreshToken: string | undefined,
     metadata: { ipAddress?: string; userAgent?: string },
@@ -397,6 +466,15 @@ export class AuthService {
       token,
       tokenHash: this.hashToken(token),
       expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    };
+  }
+
+  private createPasswordReset() {
+    const token = randomBytes(32).toString('hex');
+    return {
+      token,
+      tokenHash: this.hashToken(token),
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
     };
   }
 

@@ -7,6 +7,7 @@ import {
   api,
   http,
   readCookie,
+  registerVerifiedUser,
   tokenFromVerificationUrl,
   uniqueUser,
 } from './test-helpers';
@@ -111,5 +112,46 @@ describe('Auth HTTP (e2e)', () => {
 
     await session.post(`${PREFIX}/auth/logout`).expect(200);
     await session.post(`${PREFIX}/auth/refresh`).expect(401);
+  });
+
+  it('resets a password via a token without revealing whether the email exists', async () => {
+    const { user } = await registerVerifiedUser(app, 'reset');
+
+    const unknown = await http(app)
+      .post(`${PREFIX}/auth/forgot-password`)
+      .send({ email: 'nobody@example.com' })
+      .expect(200);
+    expect(unknown.body.payload.resetUrl).toBeUndefined();
+    expect(unknown.body.payload.message).toEqual(expect.any(String));
+
+    const forgot = await http(app)
+      .post(`${PREFIX}/auth/forgot-password`)
+      .send({ email: user.email })
+      .expect(200);
+    expect(forgot.body.payload.resetUrl).toEqual(expect.any(String));
+
+    const resetToken = tokenFromVerificationUrl(forgot.body.payload.resetUrl);
+    await http(app)
+      .post(`${PREFIX}/auth/reset-password`)
+      .send({ token: resetToken, password: 'NewPass123' })
+      .expect(200);
+
+    await http(app)
+      .post(`${PREFIX}/auth/login`)
+      .send({ email: user.email, password: user.password })
+      .expect(401);
+
+    await http(app)
+      .post(`${PREFIX}/auth/login`)
+      .send({ email: user.email, password: 'NewPass123' })
+      .expect(200);
+
+    await http(app)
+      .post(`${PREFIX}/auth/reset-password`)
+      .send({ token: resetToken, password: 'Another1' })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.errorCode).toBe(ErrorCode.PASSWORD_RESET_TOKEN_INVALID);
+      });
   });
 });

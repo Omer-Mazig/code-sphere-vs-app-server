@@ -7,6 +7,8 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from '../common/decorators';
 import {
   ApiEnvelopeCreatedResponse,
@@ -15,9 +17,11 @@ import {
 } from '../common/swagger';
 import {
   AuthSessionResponseDto,
+  ForgotPasswordResponseDto,
   LogoutResponseDto,
   RegisterResponseDto,
   ResendVerificationResponseDto,
+  ResetPasswordResponseDto,
 } from './dto/auth-response.dto';
 
 @ApiTags('Auth')
@@ -98,6 +102,26 @@ export class AuthController {
   @ApiStandardErrorResponses()
   async resendVerification(@Body() payload: ResendVerificationDto) {
     return this.authService.resendVerification(payload.email);
+  }
+
+  @Post('forgot-password')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @ApiEnvelopeOkResponse(ForgotPasswordResponseDto)
+  @ApiStandardErrorResponses()
+  async forgotPassword(@Body() payload: ForgotPasswordDto) {
+    return this.authService.forgotPassword(payload.email);
+  }
+
+  @Post('reset-password')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiEnvelopeOkResponse(ResetPasswordResponseDto)
+  @ApiStandardErrorResponses()
+  async resetPassword(@Body() payload: ResetPasswordDto) {
+    return this.authService.resetPassword(payload.token, payload.password);
   }
 
   @Post('refresh')

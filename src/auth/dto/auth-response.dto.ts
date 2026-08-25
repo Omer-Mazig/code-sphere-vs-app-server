@@ -59,3 +59,21 @@ export class ResendVerificationResponseDto {
   })
   verificationUrl?: string;
 }
+
+export class ForgotPasswordResponseDto {
+  @ApiProperty({
+    example:
+      'If an account exists for that email, a password reset link has been sent.',
+  })
+  message!: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Present only in non-production when a reset email was issued.',
+  })
+  resetUrl?: string;
+}
+
+export class ResetPasswordResponseDto extends MessageResponseDto {}
+

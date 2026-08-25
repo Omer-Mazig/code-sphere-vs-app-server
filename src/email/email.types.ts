@@ -7,6 +7,12 @@ export interface VerificationEmailPayload {
   verificationUrl: string;
 }
 
+export interface PasswordResetEmailPayload {
+  to: string;
+  resetUrl: string;
+}
+
 export interface EmailProvider {
   sendVerificationEmail(payload: VerificationEmailPayload): Promise<void>;
+  sendPasswordResetEmail(payload: PasswordResetEmailPayload): Promise<void>;
 }

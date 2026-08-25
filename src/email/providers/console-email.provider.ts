@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { EmailProvider, VerificationEmailPayload } from '../email.types';
+import type {
+  EmailProvider,
+  PasswordResetEmailPayload,
+  VerificationEmailPayload,
+} from '../email.types';
 
 @Injectable()
 export class ConsoleEmailProvider implements EmailProvider {
@@ -10,6 +14,14 @@ export class ConsoleEmailProvider implements EmailProvider {
       `Verification email for ${payload.to} (console provider — not sent)`,
     );
     this.logger.log(`Open this link to verify: ${payload.verificationUrl}`);
+    return Promise.resolve();
+  }
+
+  sendPasswordResetEmail(payload: PasswordResetEmailPayload): Promise<void> {
+    this.logger.log(
+      `Password reset email for ${payload.to} (console provider — not sent)`,
+    );
+    this.logger.log(`Open this link to reset: ${payload.resetUrl}`);
     return Promise.resolve();
   }
 }
