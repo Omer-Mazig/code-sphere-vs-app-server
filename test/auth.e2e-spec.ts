@@ -57,9 +57,9 @@ describe('Auth HTTP (e2e)', () => {
     await http(app)
       .post(`${PREFIX}/auth/login`)
       .send({ email: user.email, password: user.password })
-      .expect(403)
+      .expect(401)
       .expect((res) => {
-        expect(res.body.errorCode).toBe(ErrorCode.EMAIL_NOT_VERIFIED);
+        expect(res.body.errorCode).toBe(ErrorCode.AUTHENTICATION_ERROR);
       });
 
     const token = tokenFromVerificationUrl(register.body.payload.verificationUrl);

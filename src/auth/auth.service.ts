@@ -107,11 +107,13 @@ export class AuthService {
     }
 
     if (!user.emailVerified) {
+      // Same public response as unknown/wrong password so login cannot
+      // be used to enumerate registered-but-unverified emails.
       throw new BusinessException(
-        ErrorCode.EMAIL_NOT_VERIFIED,
+        ErrorCode.AUTHENTICATION_ERROR,
         `User with email "${payload.email}" has not verified their email`,
-        'Please verify your email before signing in',
-        HttpStatus.FORBIDDEN,
+        'Invalid credentials',
+        HttpStatus.UNAUTHORIZED,
       );
     }
 

@@ -130,8 +130,9 @@ describe('AuthService', () => {
       await expect(
         service.login({ email: 'ada@example.com', password: 'Password1' }, metadata),
       ).rejects.toMatchObject({
-        errorCode: ErrorCode.EMAIL_NOT_VERIFIED,
-        httpStatus: HttpStatus.FORBIDDEN,
+        errorCode: ErrorCode.AUTHENTICATION_ERROR,
+        clientMessage: 'Invalid credentials',
+        httpStatus: HttpStatus.UNAUTHORIZED,
       });
     });
 
