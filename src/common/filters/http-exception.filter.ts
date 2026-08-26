@@ -11,6 +11,8 @@ import { Response } from 'express';
 import { BusinessException } from '../errors/business.exception';
 import { ErrorCode } from '../errors/error-codes.enum';
 import { mapDatabaseError } from '../errors/map-database-error';
+import { RequestValidationException } from '../errors/request-validation.exception';
+import type { ValidationFieldError } from '../errors/flatten-validation-errors';
 import { redactSensitiveFields } from '../utils/redact-sensitive-fields';
 import type { RequestWithContext } from '../middleware/request-context.middleware';
 
@@ -20,6 +22,7 @@ interface ErrorResponse {
   errorCode: ErrorCode;
   message: string;
   timestamp: string;
+  details?: ValidationFieldError[];
 }
 
 @Catch()
@@ -35,12 +38,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let errorCode: ErrorCode;
     let clientMessage: string;
     let internalMessage: string;
+    let details: ValidationFieldError[] | undefined;
 
     if (exception instanceof BusinessException) {
       status = exception.httpStatus;
       errorCode = exception.errorCode;
       clientMessage = exception.clientMessage;
       internalMessage = exception.internalMessage;
+    } else if (exception instanceof RequestValidationException) {
+      status = HttpStatus.BAD_REQUEST;
+      errorCode = ErrorCode.VALIDATION_ERROR;
+      clientMessage = 'Invalid request data';
+      details =
+        exception.details.length > 0 ? exception.details : undefined;
+      internalMessage = details
+        ? details.map((item) => `${item.field}: ${item.message}`).join('; ')
+        : 'Invalid request data';
     } else if (exception instanceof ThrottlerException) {
       status = HttpStatus.TOO_MANY_REQUESTS;
       errorCode = ErrorCode.RATE_LIMIT_EXCEEDED;
@@ -92,6 +105,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message: clientMessage,
       timestamp,
     };
+
+    if (details) {
+      errorResponse.details = details;
+    }
 
     response.status(status).json(errorResponse);
   }

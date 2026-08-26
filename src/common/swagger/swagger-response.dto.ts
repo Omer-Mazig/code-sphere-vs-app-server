@@ -49,6 +49,16 @@ export class PaginatedMetaDto {
   hasPreviousPage!: boolean;
 }
 
+export class ValidationFieldErrorDto {
+  @ApiProperty({ example: 'password' })
+  field!: string;
+
+  @ApiProperty({
+    example: 'Password must be at least 8 characters and contain at least one letter and one number',
+  })
+  message!: string;
+}
+
 export class ApiErrorResponseDto {
   @ApiProperty({ example: 404 })
   statusCode!: number;
@@ -73,6 +83,13 @@ export class ApiErrorResponseDto {
     example: '2026-02-15T21:10:35.120Z',
   })
   timestamp!: string;
+
+  @ApiPropertyOptional({
+    type: [ValidationFieldErrorDto],
+    description:
+      'Per-field validation errors. Present on request-pipe VALIDATION_ERROR responses.',
+  })
+  details?: ValidationFieldErrorDto[];
 }
 
 export class MessageResponseDto {

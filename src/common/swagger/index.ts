@@ -11,4 +11,5 @@ export {
   ApiErrorResponseDto,
   MessageResponseDto,
   PaginatedMetaDto,
+  ValidationFieldErrorDto,
 } from './swagger-response.dto';

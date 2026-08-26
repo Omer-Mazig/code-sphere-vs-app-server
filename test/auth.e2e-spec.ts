@@ -43,6 +43,12 @@ describe('Auth HTTP (e2e)', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    expect(response.body.message).toBe('Invalid request data');
+    expect(response.body.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'password' }),
+      ]),
+    );
   });
 
   it('requires email verification before login and then issues a session', async () => {

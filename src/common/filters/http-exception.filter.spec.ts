@@ -3,6 +3,7 @@ import { ThrottlerException } from '@nestjs/throttler';
 import { QueryFailedError } from 'typeorm';
 import { BusinessException } from '../errors/business.exception';
 import { ErrorCode } from '../errors/error-codes.enum';
+import { RequestValidationException } from '../errors/request-validation.exception';
 import { GlobalExceptionFilter } from './http-exception.filter';
 
 function createHost(overrides?: {
@@ -102,6 +103,50 @@ describe('GlobalExceptionFilter', () => {
         message: 'Authentication required',
       }),
     );
+    expect(json.mock.calls[0][0].details).toBeUndefined();
+  });
+
+  it('attaches per-field details for request-pipe validation failures', () => {
+    const { host, json, status } = createHost();
+
+    filter.catch(
+      new RequestValidationException([
+        {
+          field: 'password',
+          message: 'Password must be at least 8 characters',
+        },
+      ]),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 400,
+        errorCode: ErrorCode.VALIDATION_ERROR,
+        message: 'Invalid request data',
+        details: [
+          {
+            field: 'password',
+            message: 'Password must be at least 8 characters',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('keeps a generic 400 body when validation details are empty', () => {
+    const { host, json } = createHost();
+
+    filter.catch(new RequestValidationException([]), host);
+
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: ErrorCode.VALIDATION_ERROR,
+        message: 'Invalid request data',
+      }),
+    );
+    expect(json.mock.calls[0][0].details).toBeUndefined();
   });
 
   it('maps unique database errors through mapDatabaseError', () => {

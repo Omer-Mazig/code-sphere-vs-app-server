@@ -3,6 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { ValidationError } from 'class-validator';
+import {
+  flattenValidationErrors,
+  RequestValidationException,
+} from './common/errors';
 import { GlobalExceptionFilter } from './common/filters';
 import { buildSwaggerConfig } from './config/swagger.config';
 
@@ -28,6 +33,8 @@ export function configureHttpApp(
       transform: true,
       forbidNonWhitelisted: true,
       disableErrorMessages: false,
+      exceptionFactory: (errors: ValidationError[]) =>
+        new RequestValidationException(flattenValidationErrors(errors)),
     }),
   );
 

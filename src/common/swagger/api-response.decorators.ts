@@ -17,6 +17,7 @@ import {
   ApiEnvelopeWarningDto,
   ApiErrorResponseDto,
   PaginatedMetaDto,
+  ValidationFieldErrorDto,
 } from './swagger-response.dto';
 
 type SwaggerType = Type<unknown>;
@@ -119,7 +120,7 @@ export function ApiEnvelopePaginatedOkResponse(
 
 export function ApiStandardErrorResponses() {
   return applyDecorators(
-    ApiExtraModels(ApiErrorResponseDto),
+    ApiExtraModels(ApiErrorResponseDto, ValidationFieldErrorDto),
     ApiBadRequestResponse({
       type: ApiErrorResponseDto,
       description: 'Request validation or domain validation failed.',
