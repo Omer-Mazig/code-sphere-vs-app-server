@@ -1,9 +1,10 @@
-import { HttpStatus } from '@nestjs/common';
+import { HttpStatus, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { AUTH_AUDIT_EVENT } from './auth-audit';
 import { User } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -102,6 +103,14 @@ function createService() {
 
 describe('AuthService', () => {
   const metadata = { ipAddress: '127.0.0.1', userAgent: 'jest' };
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'log').mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   describe('login', () => {
     it('rejects unknown, wrong-password, inactive, and unverified users with safe messages', async () => {
@@ -327,6 +336,250 @@ describe('AuthService', () => {
       expect(user.passwordResetTokenHash).toBeNull();
       expect(user.passwordResetExpiresAt).toBeNull();
       expect(updateExecute).toHaveBeenCalled();
+    });
+  });
+
+  describe('audit logging', () => {
+    const auditMeta = {
+      ipAddress: '203.0.113.8',
+      userAgent: 'audit-agent',
+      requestId: 'req-audit-1',
+    };
+
+    function auditEntries() {
+      return jest
+        .mocked(Logger.prototype.log)
+        .mock.calls.map((args) => args[0])
+        .filter(
+          (value): value is Record<string, unknown> =>
+            Boolean(value) &&
+            typeof value === 'object' &&
+            'event' in value,
+        );
+    }
+
+    it('logs login success and refresh issued without tokens or passwords', async () => {
+      const { service, usersRepository } = createService();
+      usersRepository.findOne.mockResolvedValue(buildUser());
+
+      const result = await service.login(
+        { email: 'ada@example.com', password: 'Password1' },
+        auditMeta,
+      );
+
+      expect(auditEntries()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.LOGIN,
+            outcome: 'success',
+            userId: 'user-1',
+            ip: auditMeta.ipAddress,
+            userAgent: auditMeta.userAgent,
+            requestId: auditMeta.requestId,
+          }),
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.REFRESH,
+            outcome: 'issued',
+            userId: 'user-1',
+            requestId: auditMeta.requestId,
+          }),
+        ]),
+      );
+
+      const serialized = JSON.stringify(auditEntries());
+      expect(serialized).not.toContain('Password1');
+      expect(serialized).not.toContain(result.accessToken);
+      expect(serialized).not.toContain(result.refreshToken);
+    });
+
+    it('logs login failures internally while keeping the generic client message', async () => {
+      const { service, usersRepository } = createService();
+
+      usersRepository.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.login(
+          { email: 'ghost@example.com', password: 'Password1' },
+          auditMeta,
+        ),
+      ).rejects.toMatchObject({
+        clientMessage: 'Invalid credentials',
+      });
+      expect(auditEntries()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.LOGIN,
+            outcome: 'failure',
+            reason: 'user_not_found',
+            requestId: auditMeta.requestId,
+          }),
+        ]),
+      );
+      expect(auditEntries()[0]).not.toHaveProperty('userId');
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      usersRepository.findOne.mockResolvedValueOnce(
+        buildUser({ emailVerified: false }),
+      );
+      await expect(
+        service.login(
+          { email: 'ada@example.com', password: 'Password1' },
+          auditMeta,
+        ),
+      ).rejects.toMatchObject({
+        clientMessage: 'Invalid credentials',
+      });
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.LOGIN,
+          outcome: 'failure',
+          userId: 'user-1',
+          reason: 'email_unverified',
+        }),
+      ]);
+    });
+
+    it('logs register, verify, resend, password reset, logout, and refresh outcomes', async () => {
+      const { service, usersRepository, refreshTokensRepository } =
+        createService();
+      usersRepository.findOne.mockResolvedValue(null);
+
+      await service.register(
+        {
+          email: 'ada@example.com',
+          password: 'Password1',
+          username: 'ada',
+          displayName: 'Ada',
+        },
+        auditMeta,
+      );
+      expect(auditEntries()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.REGISTER,
+            outcome: 'success',
+            requestId: auditMeta.requestId,
+          }),
+        ]),
+      );
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      await service.resendVerification('ghost@example.com', auditMeta);
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.RESEND_VERIFICATION,
+          outcome: 'noop',
+          reason: 'unknown_email',
+        }),
+      ]);
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      await service.forgotPassword('ghost@example.com', auditMeta);
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.PASSWORD_RESET_REQUEST,
+          outcome: 'noop',
+          reason: 'unknown_email',
+        }),
+      ]);
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      await expect(service.verifyEmail('', auditMeta)).rejects.toBeInstanceOf(
+        BusinessException,
+      );
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.VERIFY_EMAIL,
+          outcome: 'failure',
+          reason: 'missing_token',
+        }),
+      ]);
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      const resetUser = buildUser({
+        passwordResetTokenHash: hashToken('valid-token'),
+        passwordResetExpiresAt: new Date(Date.now() + 60_000),
+      });
+      usersRepository.findOne.mockResolvedValueOnce(resetUser);
+      await service.resetPassword('valid-token', 'Password2', auditMeta);
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.PASSWORD_RESET,
+          outcome: 'success',
+          userId: 'user-1',
+        }),
+      ]);
+      const resetSerialized = JSON.stringify(auditEntries());
+      expect(resetSerialized).not.toContain('valid-token');
+      expect(resetSerialized).not.toContain('Password2');
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      usersRepository.findOne.mockResolvedValue(buildUser());
+      const login = await service.login(
+        { email: 'ada@example.com', password: 'Password1' },
+        auditMeta,
+      );
+      jest.mocked(Logger.prototype.log).mockClear();
+      refreshTokensRepository.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: 'user-1',
+        tokenHash: hashToken(login.refreshToken),
+      } as RefreshToken);
+      await service.logout(login.refreshToken, auditMeta);
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.LOGOUT,
+          outcome: 'success',
+          userId: 'user-1',
+        }),
+      ]);
+      expect(JSON.stringify(auditEntries())).not.toContain(login.refreshToken);
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      const stored = {
+        id: 'rt-old',
+        userId: 'user-1',
+        tokenHash: hashToken(login.refreshToken),
+        revokedAt: null as Date | null,
+        expiresAt: new Date(Date.now() + 60_000),
+        replacedByTokenId: undefined as string | undefined,
+      };
+      refreshTokensRepository.findOne.mockResolvedValue(stored);
+      refreshTokensRepository.save.mockImplementation(async (value) => {
+        if (typeof value === 'object' && value && !('id' in value && value.id)) {
+          Object.assign(value, { id: 'rt-1' });
+        }
+        return value;
+      });
+      await service.refresh(login.refreshToken, auditMeta);
+      expect(auditEntries()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.REFRESH,
+            outcome: 'issued',
+          }),
+          expect.objectContaining({
+            event: AUTH_AUDIT_EVENT.REFRESH,
+            outcome: 'rotated',
+            userId: 'user-1',
+          }),
+        ]),
+      );
+
+      jest.mocked(Logger.prototype.log).mockClear();
+      refreshTokensRepository.findOne.mockResolvedValue({
+        ...stored,
+        revokedAt: new Date(),
+      });
+      await expect(
+        service.refresh(login.refreshToken, auditMeta),
+      ).rejects.toBeInstanceOf(BusinessException);
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          event: AUTH_AUDIT_EVENT.REFRESH,
+          outcome: 'reuse_detected',
+          userId: 'user-1',
+        }),
+      ]);
     });
   });
 });

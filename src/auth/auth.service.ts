@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
@@ -11,7 +11,9 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
-import { AuthPayload } from './auth.types';
+import { AUTH_AUDIT_EVENT, buildAuthAuditLog } from './auth-audit';
+import type { AuthAuditEvent, AuthAuditOutcome } from './auth-audit';
+import { AuthPayload, AuthRequestMetadata } from './auth.types';
 import { EmailService } from '../email';
 
 type TokenBundle = {
@@ -30,6 +32,7 @@ const GENERIC_PASSWORD_RESET_SENT_MESSAGE =
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly accessTokenSecret: string | undefined;
   private readonly refreshTokenSecret: string | undefined;
   private readonly accessTokenTtlSeconds: number;
@@ -69,15 +72,15 @@ export class AuthService {
     return this.refreshCookieName;
   }
 
-  async login(
-    payload: LoginDto,
-    metadata: { ipAddress?: string; userAgent?: string },
-  ) {
+  async login(payload: LoginDto, metadata: AuthRequestMetadata) {
     const user = await this.usersRepository.findOne({
       where: { email: payload.email },
     });
 
     if (!user) {
+      this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'failure', metadata, {
+        reason: 'user_not_found',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         `User with email "${payload.email}" not found`,
@@ -92,6 +95,10 @@ export class AuthService {
     );
 
     if (!passwordMatches) {
+      this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'failure', metadata, {
+        userId: user.id,
+        reason: 'invalid_password',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         `Invalid credentials for "${payload.email}"`,
@@ -101,6 +108,10 @@ export class AuthService {
     }
 
     if (!user.isActive) {
+      this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'failure', metadata, {
+        userId: user.id,
+        reason: 'inactive',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         `User with email "${payload.email}" is inactive`,
@@ -112,6 +123,10 @@ export class AuthService {
     if (!user.emailVerified) {
       // Same public response as unknown/wrong password so login cannot
       // be used to enumerate registered-but-unverified emails.
+      this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'failure', metadata, {
+        userId: user.id,
+        reason: 'email_unverified',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         `User with email "${payload.email}" has not verified their email`,
@@ -121,6 +136,9 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user, metadata);
+    this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'success', metadata, {
+      userId: user.id,
+    });
 
     return {
       user: this.sanitizeUser(user),
@@ -130,12 +148,19 @@ export class AuthService {
     };
   }
 
-  async register(payload: RegisterDto) {
+  async register(
+    payload: RegisterDto,
+    metadata: AuthRequestMetadata = {},
+  ) {
     const existingEmail = await this.usersRepository.findOne({
       where: { email: payload.email },
     });
 
     if (existingEmail) {
+      this.logAuth(AUTH_AUDIT_EVENT.REGISTER, 'failure', metadata, {
+        userId: existingEmail.id,
+        reason: 'email_exists',
+      });
       throw new BusinessException(
         ErrorCode.USER_EMAIL_EXISTS,
         `User with email "${payload.email}" already exists`,
@@ -149,6 +174,10 @@ export class AuthService {
     });
 
     if (existingUsername) {
+      this.logAuth(AUTH_AUDIT_EVENT.REGISTER, 'failure', metadata, {
+        userId: existingUsername.id,
+        reason: 'username_exists',
+      });
       throw new BusinessException(
         ErrorCode.USER_USERNAME_EXISTS,
         `Username "${payload.username}" is taken`,
@@ -171,27 +200,33 @@ export class AuthService {
       emailVerificationExpiresAt: verification.expiresAt,
     });
 
-    await this.usersRepository.save(user);
+    const savedUser = await this.usersRepository.save(user);
+    this.logAuth(AUTH_AUDIT_EVENT.REGISTER, 'success', metadata, {
+      userId: savedUser.id,
+    });
 
     const verificationUrl = this.emailService.buildVerificationUrl(
       verification.token,
     );
-    await this.emailService.sendVerificationEmail(user.email, verificationUrl);
+    await this.emailService.sendVerificationEmail(
+      savedUser.email,
+      verificationUrl,
+    );
 
     return {
       message: 'Check your email to verify your account before signing in.',
-      email: user.email,
+      email: savedUser.email,
       ...(this.emailService.shouldExposeVerificationUrl() && {
         verificationUrl,
       }),
     };
   }
 
-  async verifyEmail(
-    token: string,
-    metadata: { ipAddress?: string; userAgent?: string },
-  ) {
+  async verifyEmail(token: string, metadata: AuthRequestMetadata) {
     if (!token) {
+      this.logAuth(AUTH_AUDIT_EVENT.VERIFY_EMAIL, 'failure', metadata, {
+        reason: 'missing_token',
+      });
       throw new BusinessException(
         ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
         'Email verification token missing',
@@ -206,6 +241,9 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logAuth(AUTH_AUDIT_EVENT.VERIFY_EMAIL, 'failure', metadata, {
+        reason: 'not_found',
+      });
       throw new BusinessException(
         ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
         'Email verification token not found',
@@ -218,6 +256,10 @@ export class AuthService {
       !user.emailVerificationExpiresAt ||
       user.emailVerificationExpiresAt <= new Date()
     ) {
+      this.logAuth(AUTH_AUDIT_EVENT.VERIFY_EMAIL, 'failure', metadata, {
+        userId: user.id,
+        reason: 'expired',
+      });
       throw new BusinessException(
         ErrorCode.EMAIL_VERIFICATION_TOKEN_EXPIRED,
         `Email verification token expired for user "${user.id}"`,
@@ -232,6 +274,9 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user, metadata);
+    this.logAuth(AUTH_AUDIT_EVENT.VERIFY_EMAIL, 'success', metadata, {
+      userId: user.id,
+    });
 
     return {
       user: this.sanitizeUser(user),
@@ -241,10 +286,17 @@ export class AuthService {
     };
   }
 
-  async resendVerification(email: string) {
+  async resendVerification(
+    email: string,
+    metadata: AuthRequestMetadata = {},
+  ) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (!user || user.emailVerified) {
+      this.logAuth(AUTH_AUDIT_EVENT.RESEND_VERIFICATION, 'noop', metadata, {
+        ...(user ? { userId: user.id } : {}),
+        reason: user ? 'already_verified' : 'unknown_email',
+      });
       return { message: GENERIC_VERIFICATION_SENT_MESSAGE };
     }
 
@@ -252,6 +304,9 @@ export class AuthService {
     user.emailVerificationTokenHash = verification.tokenHash;
     user.emailVerificationExpiresAt = verification.expiresAt;
     await this.usersRepository.save(user);
+    this.logAuth(AUTH_AUDIT_EVENT.RESEND_VERIFICATION, 'sent', metadata, {
+      userId: user.id,
+    });
 
     const verificationUrl = this.emailService.buildVerificationUrl(
       verification.token,
@@ -266,10 +321,17 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(email: string) {
+  async forgotPassword(
+    email: string,
+    metadata: AuthRequestMetadata = {},
+  ) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (!user || !user.isActive) {
+      this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET_REQUEST, 'noop', metadata, {
+        ...(user ? { userId: user.id } : {}),
+        reason: user ? 'inactive' : 'unknown_email',
+      });
       return { message: GENERIC_PASSWORD_RESET_SENT_MESSAGE };
     }
 
@@ -277,6 +339,9 @@ export class AuthService {
     user.passwordResetTokenHash = reset.tokenHash;
     user.passwordResetExpiresAt = reset.expiresAt;
     await this.usersRepository.save(user);
+    this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET_REQUEST, 'sent', metadata, {
+      userId: user.id,
+    });
 
     const resetUrl = this.emailService.buildPasswordResetUrl(reset.token);
     await this.emailService.sendPasswordResetEmail(user.email, resetUrl);
@@ -287,8 +352,15 @@ export class AuthService {
     };
   }
 
-  async resetPassword(token: string, password: string) {
+  async resetPassword(
+    token: string,
+    password: string,
+    metadata: AuthRequestMetadata = {},
+  ) {
     if (!token) {
+      this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET, 'failure', metadata, {
+        reason: 'missing_token',
+      });
       throw new BusinessException(
         ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
         'Password reset token missing',
@@ -303,6 +375,9 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET, 'failure', metadata, {
+        reason: 'not_found',
+      });
       throw new BusinessException(
         ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
         'Password reset token not found',
@@ -315,6 +390,10 @@ export class AuthService {
       !user.passwordResetExpiresAt ||
       user.passwordResetExpiresAt <= new Date()
     ) {
+      this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET, 'failure', metadata, {
+        userId: user.id,
+        reason: 'expired',
+      });
       throw new BusinessException(
         ErrorCode.PASSWORD_RESET_TOKEN_EXPIRED,
         `Password reset token expired for user "${user.id}"`,
@@ -328,15 +407,21 @@ export class AuthService {
     user.passwordResetExpiresAt = null;
     await this.usersRepository.save(user);
     await this.revokeAllTokensForUser(user.id);
+    this.logAuth(AUTH_AUDIT_EVENT.PASSWORD_RESET, 'success', metadata, {
+      userId: user.id,
+    });
 
     return { message: 'Password updated. You can sign in with your new password.' };
   }
 
   async refresh(
     refreshToken: string | undefined,
-    metadata: { ipAddress?: string; userAgent?: string },
+    metadata: AuthRequestMetadata,
   ) {
     if (!refreshToken) {
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'failure', metadata, {
+        reason: 'missing_token',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token missing',
@@ -347,6 +432,9 @@ export class AuthService {
 
     const decoded = this.verifyRefreshToken(refreshToken);
     if (!decoded) {
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'failure', metadata, {
+        reason: 'invalid_signature',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token signature invalid',
@@ -361,6 +449,10 @@ export class AuthService {
     });
 
     if (!storedToken) {
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'failure', metadata, {
+        userId: decoded.sub,
+        reason: 'not_found',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token not found',
@@ -371,6 +463,10 @@ export class AuthService {
 
     if (decoded.sub !== storedToken.userId) {
       await this.revokeAllTokensForUser(storedToken.userId);
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'revoked', metadata, {
+        userId: storedToken.userId,
+        reason: 'subject_mismatch',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token subject mismatch',
@@ -381,6 +477,9 @@ export class AuthService {
 
     if (storedToken.revokedAt) {
       await this.revokeAllTokensForUser(storedToken.userId);
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'reuse_detected', metadata, {
+        userId: storedToken.userId,
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token reused',
@@ -391,6 +490,10 @@ export class AuthService {
 
     if (storedToken.expiresAt <= new Date()) {
       await this.revokeToken(storedToken);
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'revoked', metadata, {
+        userId: storedToken.userId,
+        reason: 'expired',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'Refresh token expired',
@@ -405,6 +508,10 @@ export class AuthService {
 
     if (!user || !user.isActive || !user.emailVerified) {
       await this.revokeAllTokensForUser(storedToken.userId);
+      this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'revoked', metadata, {
+        userId: storedToken.userId,
+        reason: 'user_unavailable',
+      });
       throw new BusinessException(
         ErrorCode.AUTHENTICATION_ERROR,
         'User not available for refresh',
@@ -418,6 +525,9 @@ export class AuthService {
     storedToken.revokedAt = new Date();
     storedToken.replacedByTokenId = nextTokens.refreshTokenId;
     await this.refreshTokensRepository.save(storedToken);
+    this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'rotated', metadata, {
+      userId: user.id,
+    });
 
     return {
       user: this.sanitizeUser(user),
@@ -427,8 +537,14 @@ export class AuthService {
     };
   }
 
-  async logout(refreshToken?: string) {
+  async logout(
+    refreshToken?: string,
+    metadata: AuthRequestMetadata = {},
+  ) {
     if (!refreshToken) {
+      this.logAuth(AUTH_AUDIT_EVENT.LOGOUT, 'noop', metadata, {
+        reason: 'missing_token',
+      });
       return;
     }
 
@@ -439,7 +555,15 @@ export class AuthService {
 
     if (storedToken) {
       await this.revokeToken(storedToken);
+      this.logAuth(AUTH_AUDIT_EVENT.LOGOUT, 'success', metadata, {
+        userId: storedToken.userId,
+      });
+      return;
     }
+
+    this.logAuth(AUTH_AUDIT_EVENT.LOGOUT, 'noop', metadata, {
+      reason: 'not_found',
+    });
   }
 
   verifyAccessToken(token: string) {
@@ -480,7 +604,7 @@ export class AuthService {
 
   private async issueTokens(
     user: User,
-    metadata: { ipAddress?: string; userAgent?: string },
+    metadata: AuthRequestMetadata,
   ): Promise<TokenBundle> {
     if (!this.accessTokenSecret) {
       throw new BusinessException(
@@ -535,6 +659,9 @@ export class AuthService {
     });
 
     await this.refreshTokensRepository.save(refreshTokenEntity);
+    this.logAuth(AUTH_AUDIT_EVENT.REFRESH, 'issued', metadata, {
+      userId: user.id,
+    });
 
     return {
       accessToken,
@@ -589,6 +716,15 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  private logAuth(
+    event: AuthAuditEvent,
+    outcome: AuthAuditOutcome,
+    metadata: AuthRequestMetadata,
+    extra: { userId?: string; reason?: string } = {},
+  ) {
+    this.logger.log(buildAuthAuditLog(event, outcome, metadata, extra));
   }
 
   private hashToken(token: string) {

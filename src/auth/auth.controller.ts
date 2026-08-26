@@ -10,7 +10,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import type { AuthRequestMetadata } from './auth.types';
 import { Public } from '../common/decorators';
+import type { RequestWithContext } from '../common/middleware';
 import {
   ApiEnvelopeCreatedResponse,
   ApiEnvelopeOkResponse,
@@ -44,10 +46,10 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(payload, {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    const result = await this.authService.login(
+      payload,
+      this.requestMetadata(req),
+    );
 
     this.setRefreshCookie(
       res,
@@ -66,8 +68,8 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @ApiEnvelopeCreatedResponse(RegisterResponseDto)
   @ApiStandardErrorResponses()
-  async register(@Body() payload: RegisterDto) {
-    return this.authService.register(payload);
+  async register(@Body() payload: RegisterDto, @Req() req: Request) {
+    return this.authService.register(payload, this.requestMetadata(req));
   }
 
   @Post('verify-email')
@@ -81,10 +83,10 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.verifyEmail(payload.token, {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    const result = await this.authService.verifyEmail(
+      payload.token,
+      this.requestMetadata(req),
+    );
 
     this.setRefreshCookie(
       res,
@@ -104,8 +106,14 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @ApiEnvelopeOkResponse(ResendVerificationResponseDto)
   @ApiStandardErrorResponses()
-  async resendVerification(@Body() payload: ResendVerificationDto) {
-    return this.authService.resendVerification(payload.email);
+  async resendVerification(
+    @Body() payload: ResendVerificationDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.resendVerification(
+      payload.email,
+      this.requestMetadata(req),
+    );
   }
 
   @Post('forgot-password')
@@ -114,8 +122,14 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @ApiEnvelopeOkResponse(ForgotPasswordResponseDto)
   @ApiStandardErrorResponses()
-  async forgotPassword(@Body() payload: ForgotPasswordDto) {
-    return this.authService.forgotPassword(payload.email);
+  async forgotPassword(
+    @Body() payload: ForgotPasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.forgotPassword(
+      payload.email,
+      this.requestMetadata(req),
+    );
   }
 
   @Post('reset-password')
@@ -124,8 +138,15 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiEnvelopeOkResponse(ResetPasswordResponseDto)
   @ApiStandardErrorResponses()
-  async resetPassword(@Body() payload: ResetPasswordDto) {
-    return this.authService.resetPassword(payload.token, payload.password);
+  async resetPassword(
+    @Body() payload: ResetPasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.resetPassword(
+      payload.token,
+      payload.password,
+      this.requestMetadata(req),
+    );
   }
 
   @Post('refresh')
@@ -141,10 +162,10 @@ export class AuthController {
     const cookieName = this.authService.getRefreshCookieName();
     const refreshToken = this.readCookie(req, cookieName);
 
-    const result = await this.authService.refresh(refreshToken, {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    const result = await this.authService.refresh(
+      refreshToken,
+      this.requestMetadata(req),
+    );
 
     this.setRefreshCookie(
       res,
@@ -167,7 +188,7 @@ export class AuthController {
     const cookieName = this.authService.getRefreshCookieName();
     const refreshToken = this.readCookie(req, cookieName);
 
-    await this.authService.logout(refreshToken);
+    await this.authService.logout(refreshToken, this.requestMetadata(req));
 
     res.clearCookie(cookieName, {
       httpOnly: true,
@@ -177,6 +198,15 @@ export class AuthController {
     });
 
     return { message: 'Logged out' };
+  }
+
+  private requestMetadata(req: Request): AuthRequestMetadata {
+    const userAgent = req.headers['user-agent'];
+    return {
+      ipAddress: req.ip,
+      userAgent: typeof userAgent === 'string' ? userAgent : undefined,
+      requestId: (req as RequestWithContext).requestId,
+    };
   }
 
   private readCookie(req: Request, name: string): string | undefined {
