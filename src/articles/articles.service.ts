@@ -14,6 +14,7 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import { flattenRichText, newlyMentionedUsernames } from '../common/utils';
 import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
 import { NotificationTargetType } from '../notifications/entities/notification.entity';
+import { FollowsService } from '../users/follows.service';
 
 @Injectable()
 export class ArticlesService {
@@ -24,6 +25,7 @@ export class ArticlesService {
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
+    private readonly followsService: FollowsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -175,7 +177,11 @@ export class ArticlesService {
 
     const formatted = this.formatArticle(article);
     const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
-    const [enriched] = await this.enrichWithCommentCounts([withLikes]);
+    const [withComments] = await this.enrichWithCommentCounts([withLikes]);
+    const [enriched] = await this.enrichWithFollowing(
+      [withComments],
+      currentUserId,
+    );
     return enriched;
   }
 
@@ -196,7 +202,11 @@ export class ArticlesService {
 
     const formatted = this.formatArticle(article);
     const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
-    const [enriched] = await this.enrichWithCommentCounts([withLikes]);
+    const [withComments] = await this.enrichWithCommentCounts([withLikes]);
+    const [enriched] = await this.enrichWithFollowing(
+      [withComments],
+      currentUserId,
+    );
     return enriched;
   }
 
@@ -229,7 +239,11 @@ export class ArticlesService {
 
     const items = articles.map((article) => this.formatArticle(article));
     const withLikes = await this.enrichWithLikes(items, currentUserId);
-    const enrichedItems = await this.enrichWithCommentCounts(withLikes);
+    const withComments = await this.enrichWithCommentCounts(withLikes);
+    const enrichedItems = await this.enrichWithFollowing(
+      withComments,
+      currentUserId,
+    );
 
     return { items: enrichedItems, total, page, limit };
   }
@@ -295,7 +309,11 @@ export class ArticlesService {
 
     const items = ordered.map((article) => this.formatArticle(article));
     const withLikes = await this.enrichWithLikes(items, currentUserId);
-    const enrichedItems = await this.enrichWithCommentCounts(withLikes);
+    const withComments = await this.enrichWithCommentCounts(withLikes);
+    const enrichedItems = await this.enrichWithFollowing(
+      withComments,
+      currentUserId,
+    );
 
     return { items: enrichedItems, total, page, limit };
   }
@@ -388,6 +406,32 @@ export class ArticlesService {
     return items.map((item) => ({
       ...item,
       commentsCount: countMap.get(item.id) ?? 0,
+    }));
+  }
+
+  private async enrichWithFollowing<
+    T extends { author: { id: string } | null },
+  >(items: T[], currentUserId?: string): Promise<T[]> {
+    if (items.length === 0) {
+      return [];
+    }
+
+    const authorIds = items
+      .map((item) => item.author?.id)
+      .filter((id): id is string => Boolean(id));
+    const followingSet = await this.followsService.followingSet(
+      currentUserId,
+      authorIds,
+    );
+
+    return items.map((item) => ({
+      ...item,
+      author: item.author
+        ? {
+            ...item.author,
+            isFollowing: followingSet.has(item.author.id),
+          }
+        : null,
     }));
   }
 

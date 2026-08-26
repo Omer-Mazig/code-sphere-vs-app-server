@@ -14,6 +14,7 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import { newlyMentionedUsernames } from '../common/utils';
 import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
 import { NotificationTargetType } from '../notifications/entities/notification.entity';
+import { FollowsService } from '../users/follows.service';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -29,6 +30,7 @@ export class PostsService {
     private readonly commentsRepository: Repository<Comment>,
     @InjectRepository(Share)
     private readonly sharesRepository: Repository<Share>,
+    private readonly followsService: FollowsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -157,7 +159,11 @@ export class PostsService {
     const [withCommentPreview] = await this.enrichWithCommentPreview([
       withShares,
     ]);
-    return withCommentPreview;
+    const [enriched] = await this.enrichWithFollowing(
+      [withCommentPreview],
+      currentUserId,
+    );
+    return enriched;
   }
 
   async getFeed(query: PostQueryDto, currentUserId?: string) {
@@ -184,7 +190,11 @@ export class PostsService {
     const items = posts.map((post) => this.formatPost(post));
     const withLikes = await this.enrichWithLikes(items, currentUserId);
     const withShares = await this.enrichWithShares(withLikes, currentUserId);
-    const enrichedItems = await this.enrichWithCommentPreview(withShares);
+    const withCommentPreview = await this.enrichWithCommentPreview(withShares);
+    const enrichedItems = await this.enrichWithFollowing(
+      withCommentPreview,
+      currentUserId,
+    );
 
     return {
       items: enrichedItems,
@@ -414,6 +424,60 @@ export class PostsService {
           : null,
       };
     });
+  }
+
+  private async enrichWithFollowing<
+    T extends {
+      author: { id: string } | null;
+      sharedPost?: { author: { id: string } | null } | null;
+      latestComment?: { author: { id: string } | null } | null;
+    },
+  >(items: T[], currentUserId?: string): Promise<T[]> {
+    if (items.length === 0) {
+      return [];
+    }
+
+    const authorIds = items.flatMap((item) =>
+      [
+        item.author?.id,
+        item.sharedPost?.author?.id,
+        item.latestComment?.author?.id,
+      ].filter((id): id is string => Boolean(id)),
+    );
+    const followingSet = await this.followsService.followingSet(
+      currentUserId,
+      authorIds,
+    );
+
+    const withFlag = <A extends { id: string }>(
+      author: A | null,
+    ): (A & { isFollowing: boolean }) | null => {
+      if (!author) {
+        return null;
+      }
+      return { ...author, isFollowing: followingSet.has(author.id) };
+    };
+
+    return items.map((item) => ({
+      ...item,
+      author: withFlag(item.author),
+      ...(item.sharedPost
+        ? {
+            sharedPost: {
+              ...item.sharedPost,
+              author: withFlag(item.sharedPost.author),
+            },
+          }
+        : {}),
+      ...(item.latestComment
+        ? {
+            latestComment: {
+              ...item.latestComment,
+              author: withFlag(item.latestComment.author),
+            },
+          }
+        : {}),
+    }));
   }
 
   private async emitMentionNotifications(

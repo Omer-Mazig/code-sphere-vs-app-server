@@ -125,6 +125,28 @@ export class FollowsService {
     return !!follow;
   }
 
+  async followingSet(
+    currentUserId: string | undefined,
+    targetIds: string[],
+  ): Promise<Set<string>> {
+    const uniqueIds = [
+      ...new Set(targetIds.filter((id) => id && id !== currentUserId)),
+    ];
+    if (!currentUserId || uniqueIds.length === 0) {
+      return new Set();
+    }
+
+    const follows = await this.followsRepository.find({
+      where: {
+        followerId: currentUserId,
+        followingId: In(uniqueIds),
+      },
+      select: ['followingId'],
+    });
+
+    return new Set(follows.map((follow) => follow.followingId));
+  }
+
   async getSuggestedUsers(query: UserQueryDto, currentUserId?: string) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;

@@ -13,6 +13,9 @@ export class PostAuthorResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   avatarUrl!: string | null;
+
+  @ApiProperty()
+  isFollowing!: boolean;
 }
 
 export class PostCommentPreviewResponseDto {

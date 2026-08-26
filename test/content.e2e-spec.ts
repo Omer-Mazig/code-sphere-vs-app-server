@@ -219,4 +219,73 @@ describe('Content HTTP (e2e)', () => {
         expect(res.body.errorCode).toBe(ErrorCode.POST_NOT_FOUND);
       });
   });
+
+  it('embeds isFollowing on content authors without extra profile lookups', async () => {
+    const author = await registerVerifiedUser(app, 'faut');
+    const viewer = await registerVerifiedUser(app, 'fview');
+    const authorHeader = bearer(author.session.accessToken);
+    const viewerHeader = bearer(viewer.session.accessToken);
+
+    const createdPost = await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(authorHeader)
+      .send({ content: 'follow me on the feed' })
+      .expect(201);
+    const postId = createdPost.body.payload.id as string;
+    expect(createdPost.body.payload.author.isFollowing).toBe(false);
+
+    await http(app)
+      .post(`${PREFIX}/articles`)
+      .set(authorHeader)
+      .send({
+        title: 'Follow me in articles',
+        content: [{ type: 'paragraph', content: 'hello' }],
+        isPublished: true,
+      })
+      .expect(201);
+
+    const guestFeed = await http(app).get(`${PREFIX}/posts`).expect(200);
+    expect(guestFeed.body.payload.items[0].author.isFollowing).toBe(false);
+
+    const ownFeed = await http(app)
+      .get(`${PREFIX}/posts`)
+      .set(authorHeader)
+      .expect(200);
+    expect(ownFeed.body.payload.items[0].author.isFollowing).toBe(false);
+
+    const ownDetail = await http(app)
+      .get(`${PREFIX}/posts/${postId}`)
+      .set(authorHeader)
+      .expect(200);
+    expect(ownDetail.body.payload.author.isFollowing).toBe(false);
+
+    const beforeFollow = await http(app)
+      .get(`${PREFIX}/posts`)
+      .set(viewerHeader)
+      .expect(200);
+    expect(beforeFollow.body.payload.items[0].author.isFollowing).toBe(false);
+
+    await http(app)
+      .post(`${PREFIX}/users/${author.session.user.id}/follow`)
+      .set(viewerHeader)
+      .expect(201);
+
+    const afterFollow = await http(app)
+      .get(`${PREFIX}/posts`)
+      .set(viewerHeader)
+      .expect(200);
+    expect(afterFollow.body.payload.items[0].author.isFollowing).toBe(true);
+
+    const afterFollowDetail = await http(app)
+      .get(`${PREFIX}/posts/${postId}`)
+      .set(viewerHeader)
+      .expect(200);
+    expect(afterFollowDetail.body.payload.author.isFollowing).toBe(true);
+
+    const articles = await http(app)
+      .get(`${PREFIX}/articles`)
+      .set(viewerHeader)
+      .expect(200);
+    expect(articles.body.payload.items[0].author.isFollowing).toBe(true);
+  });
 });
