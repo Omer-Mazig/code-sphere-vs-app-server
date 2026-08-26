@@ -36,7 +36,10 @@ export class ArticlesController {
   @Paginated()
   @ApiEnvelopePaginatedOkResponse(ArticleResponseDto)
   @ApiStandardErrorResponses()
-  list(@Query() query: ArticleQueryDto, @CurrentUser() currentUserId: string) {
+  list(
+    @Query() query: ArticleQueryDto,
+    @CurrentUser() currentUserId: string | undefined,
+  ) {
     return this.articlesService.list(query, currentUserId);
   }
 
@@ -48,7 +51,7 @@ export class ArticlesController {
   @ApiStandardErrorResponses()
   getSuggestions(
     @Query() query: PaginationQueryDto,
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.articlesService.getSuggestions(query, currentUserId);
   }
@@ -58,7 +61,10 @@ export class ArticlesController {
   @ApiParam({ name: 'slug', type: String })
   @ApiEnvelopeOkResponse(ArticleResponseDto)
   @ApiStandardErrorResponses()
-  getBySlug(@Param('slug') slug: string, @CurrentUser() currentUserId: string) {
+  getBySlug(
+    @Param('slug') slug: string,
+    @CurrentUser() currentUserId: string | undefined,
+  ) {
     return this.articlesService.getBySlug(slug, currentUserId);
   }
 

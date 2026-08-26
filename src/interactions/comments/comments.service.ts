@@ -19,7 +19,7 @@ import { BusinessException } from '../../common/errors/business.exception';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { InteractionTargetValidatorService } from '../shared';
 import { NotificationDomainEventName } from '../../notifications/events/notification-domain-events';
-import { NotificationTargetType } from '../../notifications/notifications.entity';
+import { NotificationTargetType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class CommentsService {

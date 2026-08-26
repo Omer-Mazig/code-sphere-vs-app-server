@@ -41,7 +41,7 @@ export class CommentsController {
   @ApiStandardErrorResponses()
   getComments(
     @Query() query: InteractionQueryDto,
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.commentsService.getComments(query, currentUserId);
   }
@@ -55,7 +55,7 @@ export class CommentsController {
   getCommentReplies(
     @Param('id') commentId: string,
     @Query() query: PaginationQueryDto,
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.commentsService.getCommentReplies(
       commentId,
@@ -79,7 +79,7 @@ export class CommentsController {
   @ApiEnvelopeArrayOkResponse(CommentMentionCandidateResponseDto)
   @ApiStandardErrorResponses()
   getCommentMentionCandidates(
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
     @Query() query: CommentMentionCandidatesQueryDto,
   ) {
     return this.commentsService.getCommentMentionCandidatesForReply(

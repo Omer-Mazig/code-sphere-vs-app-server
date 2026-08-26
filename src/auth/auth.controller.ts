@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Req, Res, HttpCode } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
@@ -27,7 +28,10 @@ import {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('login')
   @Public()
@@ -167,7 +171,7 @@ export class AuthController {
 
     res.clearCookie(cookieName, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.isSecureCookie(),
       sameSite: 'strict',
       path: '/',
     });
@@ -189,10 +193,14 @@ export class AuthController {
     const cookieName = this.authService.getRefreshCookieName();
     res.cookie(cookieName, refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.isSecureCookie(),
       sameSite: 'strict',
       path: '/',
       expires: expiresAt,
     });
+  }
+
+  private isSecureCookie() {
+    return this.configService.get<boolean>('app.isProduction', false);
   }
 }

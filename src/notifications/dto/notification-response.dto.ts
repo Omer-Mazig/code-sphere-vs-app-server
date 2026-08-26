@@ -3,7 +3,7 @@ import { MessageResponseDto } from '../../common/swagger';
 import {
   NotificationTargetType,
   NotificationType,
-} from '../notifications.entity';
+} from '../entities/notification.entity';
 import {
   CommentRepliedNotificationPayloadDto,
   NewFollowerNotificationPayloadDto,

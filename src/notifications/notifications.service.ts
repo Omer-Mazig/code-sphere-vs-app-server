@@ -11,8 +11,8 @@ import {
   Notification,
   NotificationTargetType,
   NotificationType,
-} from './notifications.entity';
-import { NotificationStreamToken } from './notification-stream-token.entity';
+} from './entities/notification.entity';
+import { NotificationStreamToken } from './entities/notification-stream-token.entity';
 
 type NotificationStreamEvent =
   | {

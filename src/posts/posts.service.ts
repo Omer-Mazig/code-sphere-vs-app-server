@@ -13,7 +13,7 @@ import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { newlyMentionedUsernames } from '../common/utils';
 import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
-import { NotificationTargetType } from '../notifications/notifications.entity';
+import { NotificationTargetType } from '../notifications/entities/notification.entity';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;

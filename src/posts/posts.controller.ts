@@ -35,7 +35,10 @@ export class PostsController {
   @Paginated()
   @ApiEnvelopePaginatedOkResponse(PostResponseDto)
   @ApiStandardErrorResponses()
-  getFeed(@Query() query: PostQueryDto, @CurrentUser() currentUserId: string) {
+  getFeed(
+    @Query() query: PostQueryDto,
+    @CurrentUser() currentUserId: string | undefined,
+  ) {
     return this.postsService.getFeed(query, currentUserId);
   }
 
@@ -44,7 +47,10 @@ export class PostsController {
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(PostResponseDto)
   @ApiStandardErrorResponses()
-  getById(@Param('id') id: string, @CurrentUser() currentUserId: string) {
+  getById(
+    @Param('id') id: string,
+    @CurrentUser() currentUserId: string | undefined,
+  ) {
     return this.postsService.getById(id, currentUserId);
   }
 

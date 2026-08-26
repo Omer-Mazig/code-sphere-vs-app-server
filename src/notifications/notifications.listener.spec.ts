@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import {
   NotificationTargetType,
   NotificationType,
-} from './notifications.entity';
+} from './entities/notification.entity';
 import { NotificationsListener } from './notifications.listener';
 
 function createListener() {

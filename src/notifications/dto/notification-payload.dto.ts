@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   NotificationTargetType,
   NotificationType,
-} from '../notifications.entity';
+} from '../entities/notification.entity';
 
 export class PostLikedNotificationPayloadDto {
   @ApiProperty({ enum: [NotificationType.POST_LIKED] })

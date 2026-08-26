@@ -25,4 +25,3 @@ export class NotificationStreamToken {
   @CreateDateColumn()
   createdAt: Date;
 }
-

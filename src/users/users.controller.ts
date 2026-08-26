@@ -51,7 +51,7 @@ export class UsersController {
   @ApiStandardErrorResponses()
   getSuggestions(
     @Query() query: UserQueryDto,
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.followsService.getSuggestedUsers(query, currentUserId);
   }
@@ -63,7 +63,7 @@ export class UsersController {
   @ApiStandardErrorResponses()
   getProfile(
     @Param('id') targetUserId: string,
-    @CurrentUser() currentUserId: string,
+    @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.profilesService.getProfile(targetUserId, currentUserId);
   }

@@ -1,5 +1,5 @@
 import { TargetType } from '../../interactions/entities/like.entity';
-import { NotificationTargetType } from '../notifications.entity';
+import { NotificationTargetType } from '../entities/notification.entity';
 
 export enum NotificationDomainEventName {
   POST_LIKED = 'notification.post_liked',

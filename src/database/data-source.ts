@@ -9,8 +9,8 @@ import { Like } from '../interactions/entities/like.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Share } from '../interactions/entities/share.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
-import { Notification } from '../notifications/notifications.entity';
-import { NotificationStreamToken } from '../notifications/notification-stream-token.entity';
+import { Notification } from '../notifications/entities/notification.entity';
+import { NotificationStreamToken } from '../notifications/entities/notification-stream-token.entity';
 
 config({ path: join(__dirname, '../../.env') });
 

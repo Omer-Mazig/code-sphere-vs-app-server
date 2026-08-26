@@ -18,7 +18,7 @@ import {
 import {
   NotificationTargetType,
   NotificationType,
-} from './notifications.entity';
+} from './entities/notification.entity';
 import { NotificationsService } from './notifications.service';
 
 /*

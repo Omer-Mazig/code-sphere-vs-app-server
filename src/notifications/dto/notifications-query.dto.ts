@@ -2,7 +2,7 @@ import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto';
-import { NotificationTargetType } from '../notifications.entity';
+import { NotificationTargetType } from '../entities/notification.entity';
 
 export class NotificationsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
