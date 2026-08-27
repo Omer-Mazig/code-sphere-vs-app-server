@@ -198,6 +198,7 @@ export class CommentsService {
     this.interactionTargetValidatorService.assertCommentTargetType(
       query.targetType,
     );
+    this.assertCommentsReadableByViewer(currentUserId, query.targetType);
 
     const { page, limit, targetId, targetType, parentId } = query;
     const skip = (page - 1) * limit;
@@ -278,7 +279,7 @@ export class CommentsService {
   }
 
   async getCommentMentionCandidatesForReply(
-    currentUserId: string | undefined,
+    currentUserId: string,
     targetId: string,
     targetType: TargetType,
     parentId?: string,
@@ -360,6 +361,24 @@ export class CommentsService {
     }
 
     return results;
+  }
+
+  private assertCommentsReadableByViewer(
+    currentUserId: string | undefined,
+    targetType: TargetType,
+  ) {
+    if (currentUserId) {
+      return;
+    }
+    if (targetType === TargetType.ARTICLE) {
+      return;
+    }
+    throw new BusinessException(
+      ErrorCode.AUTHENTICATION_ERROR,
+      `Unauthenticated comment list for target type "${targetType}"`,
+      'User not authenticated.',
+      HttpStatus.UNAUTHORIZED,
+    );
   }
 
   private formatComment(comment: Comment) {

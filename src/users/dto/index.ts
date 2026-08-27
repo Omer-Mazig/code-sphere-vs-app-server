@@ -4,4 +4,5 @@ export {
   UserProfileResponseDto,
   FollowUserResponseDto,
   FollowActionResponseDto,
+  UserPreviewResponseDto,
 } from './user-response.dto';

@@ -17,7 +17,7 @@ import {
   PostDeletedResponseDto,
   PostResponseDto,
 } from './dto/post-response.dto';
-import { Public, CurrentUser, Paginated } from '../common/decorators';
+import { CurrentUser, Paginated } from '../common/decorators';
 import {
   ApiEnvelopeCreatedResponse,
   ApiEnvelopeOkResponse,
@@ -31,25 +31,23 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Get()
-  @Public()
   @Paginated()
   @ApiEnvelopePaginatedOkResponse(PostResponseDto)
   @ApiStandardErrorResponses()
   getFeed(
     @Query() query: PostQueryDto,
-    @CurrentUser() currentUserId: string | undefined,
+    @CurrentUser() currentUserId: string,
   ) {
     return this.postsService.getFeed(query, currentUserId);
   }
 
   @Get(':id')
-  @Public()
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(PostResponseDto)
   @ApiStandardErrorResponses()
   getById(
     @Param('id') id: string,
-    @CurrentUser() currentUserId: string | undefined,
+    @CurrentUser() currentUserId: string,
   ) {
     return this.postsService.getById(id, currentUserId);
   }

@@ -17,6 +17,7 @@ import {
   FollowActionResponseDto,
   FollowUserResponseDto,
   SuggestedUserResponseDto,
+  UserPreviewResponseDto,
   UserProfileResponseDto,
 } from './dto/user-response.dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
@@ -45,25 +46,32 @@ export class UsersController {
 
   // Must be declared before ":id" so "suggestions" is not captured as a param
   @Get('suggestions')
-  @Public()
   @Paginated()
   @ApiEnvelopePaginatedOkResponse(SuggestedUserResponseDto)
   @ApiStandardErrorResponses()
   getSuggestions(
     @Query() query: UserQueryDto,
-    @CurrentUser() currentUserId: string | undefined,
+    @CurrentUser() currentUserId: string,
   ) {
     return this.followsService.getSuggestedUsers(query, currentUserId);
   }
 
-  @Get(':id')
+  @Get(':id/preview')
   @Public()
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(UserPreviewResponseDto)
+  @ApiStandardErrorResponses()
+  getProfilePreview(@Param('id') targetUserId: string) {
+    return this.profilesService.getPreview(targetUserId);
+  }
+
+  @Get(':id')
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(UserProfileResponseDto)
   @ApiStandardErrorResponses()
   getProfile(
     @Param('id') targetUserId: string,
-    @CurrentUser() currentUserId: string | undefined,
+    @CurrentUser() currentUserId: string,
   ) {
     return this.profilesService.getProfile(targetUserId, currentUserId);
   }
@@ -105,7 +113,6 @@ export class UsersController {
   // ── Followers / Following ──────────────────────────────────────────
 
   @Get(':id/followers')
-  @Public()
   @Paginated()
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopePaginatedOkResponse(FollowUserResponseDto)
@@ -118,7 +125,6 @@ export class UsersController {
   }
 
   @Get(':id/following')
-  @Public()
   @Paginated()
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopePaginatedOkResponse(FollowUserResponseDto)

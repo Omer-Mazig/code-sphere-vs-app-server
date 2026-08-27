@@ -27,21 +27,9 @@ describe('Content HTTP (e2e)', () => {
     await app.close();
   });
 
-  it('serves a public paginated feed and rejects unauthenticated writes', async () => {
-    const feed = await http(app).get(`${PREFIX}/posts`).expect(200);
-
-    expect(feed.body.payload).toEqual(
-      expect.objectContaining({
-        items: [],
-        meta: expect.objectContaining({
-          total: 0,
-          page: 1,
-          limit: 20,
-          hasNextPage: false,
-        }),
-      }),
-    );
-    expect(feed.body.requestId).toEqual(expect.any(String));
+  it('rejects an unauthenticated feed and unauthenticated writes', async () => {
+    const feed = await http(app).get(`${PREFIX}/posts`).expect(401);
+    expect(feed.body.errorCode).toBe(ErrorCode.AUTHENTICATION_ERROR);
 
     const create = await http(app)
       .post(`${PREFIX}/posts`)
@@ -108,7 +96,10 @@ describe('Content HTTP (e2e)', () => {
         .expect(201);
     }
 
-    const defaultFeed = await http(app).get(`${PREFIX}/posts`).expect(200);
+    const defaultFeed = await http(app)
+      .get(`${PREFIX}/posts`)
+      .set(authHeader)
+      .expect(200);
     expect(defaultFeed.body.payload.items).toHaveLength(12);
     expect(defaultFeed.body.payload.meta.limit).toBe(20);
     expect(defaultFeed.body.payload.meta.total).toBe(12);
@@ -116,6 +107,7 @@ describe('Content HTTP (e2e)', () => {
 
     const limitedFeed = await http(app)
       .get(`${PREFIX}/posts`)
+      .set(authHeader)
       .query({ limit: 10 })
       .expect(200);
     expect(limitedFeed.body.payload.items).toHaveLength(10);
@@ -125,6 +117,7 @@ describe('Content HTTP (e2e)', () => {
 
     const authorFeed = await http(app)
       .get(`${PREFIX}/posts`)
+      .set(authHeader)
       .query({ authorId: author.session.user.id, limit: 10 })
       .expect(200);
     expect(authorFeed.body.payload.items).toHaveLength(10);
@@ -244,8 +237,8 @@ describe('Content HTTP (e2e)', () => {
       })
       .expect(201);
 
-    const guestFeed = await http(app).get(`${PREFIX}/posts`).expect(200);
-    expect(guestFeed.body.payload.items[0].author.isFollowing).toBe(false);
+    const guestFeed = await http(app).get(`${PREFIX}/posts`).expect(401);
+    expect(guestFeed.body.errorCode).toBe(ErrorCode.AUTHENTICATION_ERROR);
 
     const ownFeed = await http(app)
       .get(`${PREFIX}/posts`)
@@ -287,5 +280,66 @@ describe('Content HTTP (e2e)', () => {
       .set(viewerHeader)
       .expect(200);
     expect(articles.body.payload.items[0].author.isFollowing).toBe(true);
+  });
+
+  it('lets guests read article comments but not post comments', async () => {
+    const author = await registerVerifiedUser(app, 'cmtg');
+    const authorHeader = bearer(author.session.accessToken);
+
+    const post = await http(app)
+      .post(`${PREFIX}/posts`)
+      .set(authorHeader)
+      .send({ content: 'private discussion' })
+      .expect(201);
+    const postId = post.body.payload.id as string;
+
+    const article = await http(app)
+      .post(`${PREFIX}/articles`)
+      .set(authorHeader)
+      .send({
+        title: 'Public discussion',
+        content: [{ type: 'paragraph', content: 'hello' }],
+        isPublished: true,
+      })
+      .expect(201);
+    const articleId = article.body.payload.id as string;
+
+    await http(app)
+      .post(`${PREFIX}/interactions/comments`)
+      .set(authorHeader)
+      .send({
+        targetId: postId,
+        targetType: 'POST',
+        content: 'post comment',
+      })
+      .expect(201);
+
+    await http(app)
+      .post(`${PREFIX}/interactions/comments`)
+      .set(authorHeader)
+      .send({
+        targetId: articleId,
+        targetType: 'ARTICLE',
+        content: 'article comment',
+      })
+      .expect(201);
+
+    const guestPostComments = await http(app)
+      .get(`${PREFIX}/interactions/comments`)
+      .query({ targetId: postId, targetType: 'POST' })
+      .expect(401);
+    expect(guestPostComments.body.errorCode).toBe(
+      ErrorCode.AUTHENTICATION_ERROR,
+    );
+
+    const guestArticleComments = await http(app)
+      .get(`${PREFIX}/interactions/comments`)
+      .query({ targetId: articleId, targetType: 'ARTICLE' })
+      .expect(200);
+    expect(guestArticleComments.body.payload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ content: 'article comment' }),
+      ]),
+    );
   });
 });

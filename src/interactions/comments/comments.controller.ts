@@ -46,6 +46,23 @@ export class CommentsController {
     return this.commentsService.getComments(query, currentUserId);
   }
 
+  // Must be declared before ":id/replies" so "mention-candidates" is not captured
+  @Get('mention-candidates')
+  @ApiEnvelopeArrayOkResponse(CommentMentionCandidateResponseDto)
+  @ApiStandardErrorResponses()
+  getCommentMentionCandidates(
+    @CurrentUser() currentUserId: string,
+    @Query() query: CommentMentionCandidatesQueryDto,
+  ) {
+    return this.commentsService.getCommentMentionCandidatesForReply(
+      currentUserId,
+      query.targetId,
+      query.targetType,
+      query.parentId,
+      query.query,
+    );
+  }
+
   @Get(':id/replies')
   @Public()
   @Paginated()
@@ -72,23 +89,6 @@ export class CommentsController {
     @Body() dto: CreateCommentDto,
   ) {
     return this.commentsService.addComment(currentUserId, dto);
-  }
-
-  @Get('mention-candidates')
-  @Public()
-  @ApiEnvelopeArrayOkResponse(CommentMentionCandidateResponseDto)
-  @ApiStandardErrorResponses()
-  getCommentMentionCandidates(
-    @CurrentUser() currentUserId: string | undefined,
-    @Query() query: CommentMentionCandidatesQueryDto,
-  ) {
-    return this.commentsService.getCommentMentionCandidatesForReply(
-      currentUserId,
-      query.targetId,
-      query.targetType,
-      query.parentId,
-      query.query,
-    );
   }
 
   @Patch(':id')

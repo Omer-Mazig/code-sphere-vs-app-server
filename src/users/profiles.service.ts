@@ -38,6 +38,16 @@ export class ProfilesService {
     };
   }
 
+  async getPreview(targetUserId: string) {
+    const user = await this.usersService.findUserOrFail(targetUserId);
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+    };
+  }
+
   async getProfile(targetUserId: string, currentUserId?: string) {
     const user = await this.usersService.findUserOrFail(targetUserId);
 

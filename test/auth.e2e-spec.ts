@@ -87,10 +87,30 @@ describe('Auth HTTP (e2e)', () => {
       .expect(200);
     expect(me.body.payload.email).toBe(user.email);
 
-    const publicProfile = await http(app)
-      .get(`${PREFIX}/users/${verified.body.payload.user.id}`)
+    const userId = verified.body.payload.user.id as string;
+
+    await http(app)
+      .get(`${PREFIX}/users/${userId}`)
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.errorCode).toBe(ErrorCode.AUTHENTICATION_ERROR);
+      });
+
+    const preview = await http(app)
+      .get(`${PREFIX}/users/${userId}/preview`)
       .expect(200);
-    expect(publicProfile.body.payload.email).toBeUndefined();
+    expect(preview.body.payload).toEqual({
+      id: userId,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: null,
+    });
+
+    const authedProfile = await http(app)
+      .get(`${PREFIX}/users/${userId}`)
+      .set('Authorization', `Bearer ${verified.body.payload.accessToken}`)
+      .expect(200);
+    expect(authedProfile.body.payload.email).toBeUndefined();
   });
 
   it('rotates the refresh cookie and rejects reuse of the previous token', async () => {

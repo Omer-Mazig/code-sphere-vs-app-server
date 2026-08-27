@@ -91,3 +91,17 @@ export class SuggestedUserResponseDto {
 }
 
 export class FollowActionResponseDto extends MessageResponseDto {}
+
+export class UserPreviewResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  displayName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  avatarUrl!: string | null;
+}
