@@ -14,5 +14,7 @@ export const appConfig = registerAs('app', () => {
     corsOrigins: process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
       : defaultCorsOrigins,
+    enableSeed: process.env.ENABLE_SEED === 'true',
+    trustProxy: process.env.TRUST_PROXY === 'true',
   };
 });

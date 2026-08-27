@@ -28,6 +28,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { InteractionsModule } from './interactions/interactions.module';
 import { SeedModule } from './seed/seed.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     InteractionsModule,
     NotificationsModule,
     SeedModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [

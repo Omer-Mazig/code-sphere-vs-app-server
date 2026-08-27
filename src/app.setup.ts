@@ -51,4 +51,9 @@ export function configureHttpApp(
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  if (configService.get<boolean>('app.trustProxy', false)) {
+    const httpAdapter = app.getHttpAdapter();
+    httpAdapter.getInstance().set('trust proxy', 1);
+  }
 }

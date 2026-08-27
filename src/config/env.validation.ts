@@ -8,6 +8,8 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().optional(),
+  ENABLE_SEED: Joi.boolean().truthy('true').falsy('false').default(false),
+  TRUST_PROXY: Joi.boolean().truthy('true').falsy('false').default(false),
   LOG_LEVEL: Joi.string()
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .optional(),
