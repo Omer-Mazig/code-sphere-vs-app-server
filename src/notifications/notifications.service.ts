@@ -2,7 +2,7 @@ import { HttpStatus, Injectable, MessageEvent } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
 import { randomBytes, createHash } from 'crypto';
-import { Repository } from 'typeorm';
+import { LessThanOrEqual, Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
@@ -47,6 +47,13 @@ export class NotificationsService {
     });
 
     return { streamToken };
+  }
+
+  async purgeExpiredStreamTokens(): Promise<number> {
+    const result = await this.notificationStreamTokenRepository.delete({
+      expiresAt: LessThanOrEqual(new Date()),
+    });
+    return result.affected ?? 0;
   }
 
   async validateStreamToken(streamToken: string): Promise<string> {

@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
+import { IsNull, LessThanOrEqual, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, createHash } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
@@ -716,6 +716,14 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  async purgeExpiredRefreshTokens(): Promise<number> {
+    const result = await this.refreshTokensRepository.delete([
+      { expiresAt: LessThanOrEqual(new Date()) },
+      { revokedAt: Not(IsNull()) },
+    ]);
+    return result.affected ?? 0;
   }
 
   private logAuth(

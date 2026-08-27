@@ -51,6 +51,7 @@ function createService() {
     findOne: jest.fn(),
     create: jest.fn((value) => value),
     save: jest.fn(async (value) => ({ id: 'rt-1', ...value })),
+    delete: jest.fn(),
     createQueryBuilder: jest.fn(() => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
@@ -579,6 +580,19 @@ describe('AuthService', () => {
           outcome: 'reuse_detected',
           userId: 'user-1',
         }),
+      ]);
+    });
+  });
+
+  describe('purgeExpiredRefreshTokens', () => {
+    it('deletes expired or revoked refresh tokens', async () => {
+      const { service, refreshTokensRepository } = createService();
+      refreshTokensRepository.delete.mockResolvedValue({ affected: 3 });
+
+      await expect(service.purgeExpiredRefreshTokens()).resolves.toBe(3);
+      expect(refreshTokensRepository.delete).toHaveBeenCalledWith([
+        { expiresAt: expect.anything() },
+        { revokedAt: expect.anything() },
       ]);
     });
   });

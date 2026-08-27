@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { DevelopmentWaitMiddleware, RequestContextMiddleware } from './common';
 import {
@@ -29,6 +30,7 @@ import { InteractionsModule } from './interactions/interactions.module';
 import { SeedModule } from './seed/seed.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HealthModule } from './health/health.module';
+import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
 
 @Module({
   imports: [
@@ -81,6 +83,7 @@ import { HealthModule } from './health/health.module';
       }),
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     PostsModule,
@@ -92,6 +95,7 @@ import { HealthModule } from './health/health.module';
   ],
   controllers: [],
   providers: [
+    TokenCleanupScheduler,
     {
       provide: APP_GUARD,
       useClass: AuthGuard,
