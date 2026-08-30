@@ -7,11 +7,16 @@ import { FollowsService } from './follows.service';
 import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Follow, User, Post, Article]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([Follow, User, Post, Article]),
+    AuthModule,
+    NotificationsModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService, ProfilesService, FollowsService],
   exports: [UsersService, FollowsService],

@@ -12,7 +12,12 @@ import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProfilesService } from './profiles.service';
 import { FollowsService } from './follows.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import {
+  NotificationPreferencesResponseDto,
+  UpdateNotificationPreferencesDto,
+} from './dto/notification-preferences.dto';
 import { UserQueryDto } from './dto/user-query.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   FollowActionResponseDto,
   FollowUserResponseDto,
@@ -33,6 +38,7 @@ export class UsersController {
   constructor(
     private readonly profilesService: ProfilesService,
     private readonly followsService: FollowsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   // ── Profile ────────────────────────────────────────────────────────
@@ -84,6 +90,23 @@ export class UsersController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.profilesService.updateMyProfile(currentUserId, dto);
+  }
+
+  @Get('me/notification-preferences')
+  @ApiEnvelopeOkResponse(NotificationPreferencesResponseDto)
+  @ApiStandardErrorResponses()
+  getMyNotificationPreferences(@CurrentUser() currentUserId: string) {
+    return this.notificationsService.getMyPreferences(currentUserId);
+  }
+
+  @Patch('me/notification-preferences')
+  @ApiEnvelopeOkResponse(NotificationPreferencesResponseDto)
+  @ApiStandardErrorResponses()
+  updateMyNotificationPreferences(
+    @CurrentUser() currentUserId: string,
+    @Body() dto: UpdateNotificationPreferencesDto,
+  ) {
+    return this.notificationsService.updateMyPreferences(currentUserId, dto);
   }
 
   // ── Follow ─────────────────────────────────────────────────────────

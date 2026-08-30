@@ -15,6 +15,7 @@ import {
   UserFollowedEvent,
   UserMentionedEvent,
 } from './events/notification-domain-events';
+import { NotificationPayload } from './dto';
 import {
   NotificationTargetType,
   NotificationType,
@@ -68,7 +69,7 @@ export class NotificationsListener {
       return;
     }
 
-    await this.notificationsService.createNotification(
+    await this.notifyIfEnabled(
       post.authorId,
       NotificationType.POST_LIKED,
       NotificationTargetType.POST,
@@ -113,7 +114,7 @@ export class NotificationsListener {
       return;
     }
 
-    await this.notificationsService.createNotification(
+    await this.notifyIfEnabled(
       post.authorId,
       NotificationType.POST_COMMENTED,
       NotificationTargetType.POST,
@@ -168,7 +169,7 @@ export class NotificationsListener {
           })
         : null;
 
-    await this.notificationsService.createNotification(
+    await this.notifyIfEnabled(
       parentComment.authorId,
       NotificationType.COMMENT_REPLIED,
       parentComment.targetType === TargetType.ARTICLE
@@ -211,7 +212,7 @@ export class NotificationsListener {
       return;
     }
 
-    await this.notificationsService.createNotification(
+    await this.notifyIfEnabled(
       event.followeeId,
       NotificationType.NEW_FOLLOWER,
       NotificationTargetType.USER,
@@ -261,7 +262,7 @@ export class NotificationsListener {
         continue;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notifyIfEnabled(
         mentionedUser.id,
         NotificationType.USER_MENTIONED,
         event.targetType,
@@ -279,6 +280,24 @@ export class NotificationsListener {
         },
       );
     }
+  }
+
+  private async notifyIfEnabled(
+    userId: string,
+    type: NotificationType,
+    targetType: NotificationTargetType,
+    payload: NotificationPayload,
+  ) {
+    if (!(await this.notificationsService.isTypeEnabled(userId, type))) {
+      return;
+    }
+
+    await this.notificationsService.createNotification(
+      userId,
+      type,
+      targetType,
+      payload,
+    );
   }
 
   private toExcerpt(value: string) {

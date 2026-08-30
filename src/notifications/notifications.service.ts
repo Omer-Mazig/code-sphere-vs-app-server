@@ -6,12 +6,14 @@ import { LessThanOrEqual, Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { UpdateNotificationPreferencesDto } from '../users/dto/notification-preferences.dto';
 import { NotificationPayload } from './dto';
 import {
   Notification,
   NotificationTargetType,
   NotificationType,
 } from './entities/notification.entity';
+import { NotificationPreference } from './entities/notification-preference.entity';
 import { NotificationStreamToken } from './entities/notification-stream-token.entity';
 
 type NotificationStreamEvent =
@@ -31,7 +33,72 @@ export class NotificationsService {
     private readonly notificationsRepository: Repository<Notification>,
     @InjectRepository(NotificationStreamToken)
     private readonly notificationStreamTokenRepository: Repository<NotificationStreamToken>,
+    @InjectRepository(NotificationPreference)
+    private readonly notificationPreferenceRepository: Repository<NotificationPreference>,
   ) {}
+
+  async getMyPreferences(userId: string) {
+    const row = await this.notificationPreferenceRepository.findOne({
+      where: { userId },
+    });
+    return this.formatPreferences(row);
+  }
+
+  async updateMyPreferences(
+    userId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ) {
+    let row = await this.notificationPreferenceRepository.findOne({
+      where: { userId },
+    });
+
+    if (!row) {
+      row = this.notificationPreferenceRepository.create({
+        userId,
+        mentions: true,
+        comments: true,
+        likes: true,
+        newFollowers: true,
+      });
+    }
+
+    if (dto.mentions !== undefined) {
+      row.mentions = dto.mentions;
+    }
+    if (dto.comments !== undefined) {
+      row.comments = dto.comments;
+    }
+    if (dto.likes !== undefined) {
+      row.likes = dto.likes;
+    }
+    if (dto.newFollowers !== undefined) {
+      row.newFollowers = dto.newFollowers;
+    }
+
+    const saved = await this.notificationPreferenceRepository.save(row);
+    return this.formatPreferences(saved);
+  }
+
+  async isTypeEnabled(userId: string, type: NotificationType) {
+    const row = await this.notificationPreferenceRepository.findOne({
+      where: { userId },
+    });
+    const prefs = this.formatPreferences(row);
+
+    switch (type) {
+      case NotificationType.USER_MENTIONED:
+        return prefs.mentions;
+      case NotificationType.POST_COMMENTED:
+      case NotificationType.COMMENT_REPLIED:
+        return prefs.comments;
+      case NotificationType.POST_LIKED:
+        return prefs.likes;
+      case NotificationType.NEW_FOLLOWER:
+        return prefs.newFollowers;
+      default:
+        return true;
+    }
+  }
 
   async createStreamToken(userId: string) {
     const streamToken = randomBytes(32).toString('hex');
@@ -256,6 +323,15 @@ export class NotificationsService {
         data: event.data,
       });
     }
+  }
+
+  private formatPreferences(row: NotificationPreference | null) {
+    return {
+      mentions: row?.mentions ?? true,
+      comments: row?.comments ?? true,
+      likes: row?.likes ?? true,
+      newFollowers: row?.newFollowers ?? true,
+    };
   }
 
   private formatNotification(notification: Notification) {

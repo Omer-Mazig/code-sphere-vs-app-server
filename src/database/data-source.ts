@@ -10,6 +10,7 @@ import { Comment } from '../interactions/entities/comment.entity';
 import { Share } from '../interactions/entities/share.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { NotificationPreference } from '../notifications/entities/notification-preference.entity';
 import { NotificationStreamToken } from '../notifications/entities/notification-stream-token.entity';
 
 config({ path: join(__dirname, '../../.env') });
@@ -31,6 +32,7 @@ export default new DataSource({
     Share,
     RefreshToken,
     Notification,
+    NotificationPreference,
     NotificationStreamToken,
   ],
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],

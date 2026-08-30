@@ -18,7 +18,10 @@ function createListener() {
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(() => queryBuilder),
   };
-  const notificationsService = { createNotification: jest.fn() };
+  const notificationsService = {
+    createNotification: jest.fn(),
+    isTypeEnabled: jest.fn().mockResolvedValue(true),
+  };
 
   const listener = new NotificationsListener(
     postsRepository as never,
@@ -108,6 +111,10 @@ describe('NotificationsListener', () => {
       likerId: 'liker-1',
     });
 
+    expect(notificationsService.isTypeEnabled).toHaveBeenCalledWith(
+      'author-1',
+      NotificationType.POST_LIKED,
+    );
     expect(notificationsService.createNotification).toHaveBeenCalledWith(
       'author-1',
       NotificationType.POST_LIKED,
@@ -120,6 +127,34 @@ describe('NotificationsListener', () => {
         postExcerpt: `${'x'.repeat(79)}…`,
       }),
     );
+  });
+
+  it('does not create a notification when the recipient muted that type', async () => {
+    const { listener, postsRepository, usersRepository, notificationsService } =
+      createListener();
+    notificationsService.isTypeEnabled.mockResolvedValue(false);
+    postsRepository.findOne.mockResolvedValue({
+      id: 'post-1',
+      authorId: 'author-1',
+      content: 'hello',
+    });
+    usersRepository.findOne.mockResolvedValue({
+      id: 'liker-1',
+      username: 'grace',
+      displayName: 'Grace',
+      avatarUrl: null,
+    });
+
+    await listener.handlePostLiked({
+      postId: 'post-1',
+      likerId: 'liker-1',
+    });
+
+    expect(notificationsService.isTypeEnabled).toHaveBeenCalledWith(
+      'author-1',
+      NotificationType.POST_LIKED,
+    );
+    expect(notificationsService.createNotification).not.toHaveBeenCalled();
   });
 
   it('does not notify a user about their own follow', async () => {
