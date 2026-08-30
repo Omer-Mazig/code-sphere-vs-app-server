@@ -166,7 +166,7 @@ export class ArticlesService {
       relations: ['author'],
     });
 
-    if (!article) {
+    if (!article || !article.author?.isActive) {
       throw new BusinessException(
         ErrorCode.ARTICLE_NOT_FOUND,
         `Article with id "${articleId}" not found`,
@@ -191,7 +191,7 @@ export class ArticlesService {
       relations: ['author'],
     });
 
-    if (!article) {
+    if (!article || !article.author?.isActive) {
       throw new BusinessException(
         ErrorCode.ARTICLE_NOT_FOUND,
         `Article with slug "${slug}" not found`,
@@ -235,6 +235,8 @@ export class ArticlesService {
       qb.andWhere('article.isPublished = :isPublished', { isPublished });
     }
 
+    qb.andWhere('author.isActive = :isActive', { isActive: true });
+
     const [articles, total] = await qb.getManyAndCount();
 
     const items = articles.map((article) => this.formatArticle(article));
@@ -269,7 +271,9 @@ export class ArticlesService {
         { commentTargetType: TargetType.ARTICLE },
       )
       .select('article.id', 'id')
+      .innerJoin('article.author', 'author')
       .where('article.isPublished = :isPublished', { isPublished: true })
+      .andWhere('author.isActive = :authorActive', { authorActive: true })
       .groupBy('article.id')
       .orderBy(
         'COUNT(DISTINCT articleLike.id) + COUNT(DISTINCT articleComment.id)',
@@ -281,7 +285,9 @@ export class ArticlesService {
 
     const countQb = this.articlesRepository
       .createQueryBuilder('article')
-      .where('article.isPublished = :isPublished', { isPublished: true });
+      .innerJoin('article.author', 'author')
+      .where('article.isPublished = :isPublished', { isPublished: true })
+      .andWhere('author.isActive = :authorActive', { authorActive: true });
 
     if (currentUserId) {
       idQb.andWhere('article.authorId <> :currentUserId', { currentUserId });
@@ -390,12 +396,14 @@ export class ArticlesService {
     const countsRaw: { targetId: string; count: string }[] =
       await this.commentsRepository
         .createQueryBuilder('comment')
+        .innerJoin('comment.author', 'author')
         .select('comment.targetId', 'targetId')
         .addSelect('COUNT(*)', 'count')
         .where('comment.targetId IN (:...ids)', { ids })
         .andWhere('comment.targetType = :targetType', {
           targetType: TargetType.ARTICLE,
         })
+        .andWhere('author.isActive = :isActive', { isActive: true })
         .groupBy('comment.targetId')
         .getRawMany();
 

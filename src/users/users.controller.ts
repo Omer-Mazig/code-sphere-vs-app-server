@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProfilesService } from './profiles.service';
@@ -19,6 +20,7 @@ import {
 import { UserQueryDto } from './dto/user-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
+  DeactivateAccountResponseDto,
   FollowActionResponseDto,
   FollowUserResponseDto,
   SuggestedUserResponseDto,
@@ -107,6 +109,14 @@ export class UsersController {
     @Body() dto: UpdateNotificationPreferencesDto,
   ) {
     return this.notificationsService.updateMyPreferences(currentUserId, dto);
+  }
+
+  @Post('me/deactivate')
+  @HttpCode(200)
+  @ApiEnvelopeOkResponse(DeactivateAccountResponseDto)
+  @ApiStandardErrorResponses()
+  deactivateMyAccount(@CurrentUser() currentUserId: string) {
+    return this.profilesService.deactivateMyAccount(currentUserId);
   }
 
   // ── Follow ─────────────────────────────────────────────────────────

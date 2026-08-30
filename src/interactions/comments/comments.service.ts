@@ -211,7 +211,7 @@ export class CommentsService {
       : ({ createdAt: 'DESC' } as const);
 
     const [comments, total] = await this.commentsRepository.findAndCount({
-      where,
+      where: { ...where, author: { isActive: true } },
       relations: ['author'],
       skip,
       take: limit,
@@ -233,9 +233,10 @@ export class CommentsService {
   ) {
     const parent = await this.commentsRepository.findOne({
       where: { id: commentId },
+      relations: ['author'],
     });
 
-    if (!parent) {
+    if (!parent || !parent.author?.isActive) {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
         `Comment with id "${commentId}" not found.`,
@@ -262,7 +263,7 @@ export class CommentsService {
       relations: ['author'],
     });
 
-    if (!comment) {
+    if (!comment || !comment.author?.isActive) {
       throw new BusinessException(
         ErrorCode.COMMENT_NOT_FOUND,
         `Comment with id "${commentId}" not found`,

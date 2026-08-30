@@ -18,16 +18,24 @@ export class UsersService {
       where: { id: userId },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new BusinessException(
         ErrorCode.USER_NOT_FOUND,
-        `User with id "${userId}" not found`,
+        user
+          ? `User with id "${userId}" is inactive`
+          : `User with id "${userId}" not found`,
         'User not found',
         HttpStatus.NOT_FOUND,
       );
     }
 
     return user;
+  }
+
+  async deactivateUser(userId: string): Promise<void> {
+    const user = await this.findUserOrFail(userId);
+    user.isActive = false;
+    await this.usersRepository.save(user);
   }
 
   async updateUser(userId: string, data: ProfileFieldUpdates): Promise<User> {

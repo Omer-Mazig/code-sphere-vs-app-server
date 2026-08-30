@@ -114,7 +114,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('rejects unknown, wrong-password, inactive, and unverified users with safe messages', async () => {
+    it('rejects unknown, wrong-password, and unverified users with safe messages', async () => {
       const { service, usersRepository } = createService();
 
       usersRepository.findOne.mockResolvedValueOnce(null);
@@ -134,13 +134,6 @@ describe('AuthService', () => {
         clientMessage: 'Invalid credentials',
       });
 
-      usersRepository.findOne.mockResolvedValueOnce(buildUser({ isActive: false }));
-      await expect(
-        service.login({ email: 'ada@example.com', password: 'Password1' }, metadata),
-      ).rejects.toMatchObject({
-        clientMessage: 'Account disabled',
-      });
-
       usersRepository.findOne.mockResolvedValueOnce(
         buildUser({ emailVerified: false }),
       );
@@ -151,6 +144,23 @@ describe('AuthService', () => {
         clientMessage: 'Invalid credentials',
         httpStatus: HttpStatus.UNAUTHORIZED,
       });
+    });
+
+    it('reactivates an inactive user and issues tokens', async () => {
+      const { service, usersRepository } = createService();
+      const inactive = buildUser({ isActive: false });
+      usersRepository.findOne.mockResolvedValue(inactive);
+
+      const result = await service.login(
+        { email: 'ada@example.com', password: 'Password1' },
+        metadata,
+      );
+
+      expect(usersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'user-1', isActive: true }),
+      );
+      expect(result.accessToken).toEqual(expect.any(String));
+      expect(result.refreshToken).toEqual(expect.any(String));
     });
 
     it('issues tokens for a verified active user', async () => {
@@ -170,6 +180,51 @@ describe('AuthService', () => {
         username: 'ada',
       });
       expect(result.user).not.toHaveProperty('passwordHash');
+    });
+  });
+
+  describe('changePassword', () => {
+    it('updates the hash, revokes other sessions, and issues a new session', async () => {
+      const { service, usersRepository, refreshTokensRepository } =
+        createService();
+      const user = buildUser();
+      usersRepository.findOne.mockResolvedValue(user);
+
+      const result = await service.changePassword(
+        user.id,
+        { currentPassword: 'Password1', newPassword: 'Password2' },
+        metadata,
+      );
+
+      expect(usersRepository.save).toHaveBeenCalled();
+      const saved = usersRepository.save.mock.calls[0][0] as User;
+      expect(await bcrypt.compare('Password2', saved.passwordHash)).toBe(true);
+      expect(refreshTokensRepository.delete).toHaveBeenCalledWith({
+        userId: user.id,
+      });
+      expect(result.accessToken).toEqual(expect.any(String));
+      expect(result.refreshToken).toEqual(expect.any(String));
+    });
+
+    it('rejects a wrong current password without changing the hash', async () => {
+      const { service, usersRepository, updateExecute } = createService();
+      const user = buildUser();
+      usersRepository.findOne.mockResolvedValue(user);
+
+      await expect(
+        service.changePassword(
+          user.id,
+          { currentPassword: 'Wrong1', newPassword: 'Password2' },
+          metadata,
+        ),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.AUTHENTICATION_ERROR,
+        clientMessage: 'Invalid credentials',
+        httpStatus: HttpStatus.UNAUTHORIZED,
+      });
+
+      expect(usersRepository.save).not.toHaveBeenCalled();
+      expect(updateExecute).not.toHaveBeenCalled();
     });
   });
 

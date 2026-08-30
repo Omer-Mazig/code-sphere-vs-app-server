@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AUTH_AUDIT_EVENT, buildAuthAuditLog } from './auth-audit';
@@ -107,19 +108,6 @@ export class AuthService {
       );
     }
 
-    if (!user.isActive) {
-      this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'failure', metadata, {
-        userId: user.id,
-        reason: 'inactive',
-      });
-      throw new BusinessException(
-        ErrorCode.AUTHENTICATION_ERROR,
-        `User with email "${payload.email}" is inactive`,
-        'Account disabled',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
     if (!user.emailVerified) {
       // Same public response as unknown/wrong password so login cannot
       // be used to enumerate registered-but-unverified emails.
@@ -135,9 +123,16 @@ export class AuthService {
       );
     }
 
+    const reactivated = !user.isActive;
+    if (reactivated) {
+      user.isActive = true;
+      await this.usersRepository.save(user);
+    }
+
     const tokens = await this.issueTokens(user, metadata);
     this.logAuth(AUTH_AUDIT_EVENT.LOGIN, 'success', metadata, {
       userId: user.id,
+      ...(reactivated ? { reason: 'reactivated' } : {}),
     });
 
     return {
@@ -414,6 +409,62 @@ export class AuthService {
     return { message: 'Password updated. You can sign in with your new password.' };
   }
 
+  async changePassword(
+    userId: string,
+    payload: ChangePasswordDto,
+    metadata: AuthRequestMetadata,
+  ) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      this.logAuth(AUTH_AUDIT_EVENT.CHANGE_PASSWORD, 'failure', metadata, {
+        userId,
+        reason: 'user_not_found',
+      });
+      throw new BusinessException(
+        ErrorCode.USER_NOT_FOUND,
+        `User with id "${userId}" not found`,
+        'User not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      payload.currentPassword,
+      user.passwordHash,
+    );
+
+    if (!passwordMatches) {
+      this.logAuth(AUTH_AUDIT_EVENT.CHANGE_PASSWORD, 'failure', metadata, {
+        userId: user.id,
+        reason: 'invalid_password',
+      });
+      throw new BusinessException(
+        ErrorCode.AUTHENTICATION_ERROR,
+        `Invalid current password for user "${user.id}"`,
+        'Invalid credentials',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(payload.newPassword, 12);
+    await this.usersRepository.save(user);
+    await this.deleteAllTokensForUser(user.id);
+    const tokens = await this.issueTokens(user, metadata);
+    this.logAuth(AUTH_AUDIT_EVENT.CHANGE_PASSWORD, 'success', metadata, {
+      userId: user.id,
+    });
+
+    return {
+      user: this.sanitizeUser(user),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    };
+  }
+
   async refresh(
     refreshToken: string | undefined,
     metadata: AuthRequestMetadata,
@@ -676,7 +727,7 @@ export class AuthService {
     await this.refreshTokensRepository.save(token);
   }
 
-  private async revokeAllTokensForUser(userId: string) {
+  async revokeAllTokensForUser(userId: string) {
     await this.refreshTokensRepository
       .createQueryBuilder()
       .update(RefreshToken)
@@ -684,6 +735,10 @@ export class AuthService {
       .where('"userId" = :userId', { userId })
       .andWhere('"revokedAt" IS NULL')
       .execute();
+  }
+
+  async deleteAllTokensForUser(userId: string) {
+    await this.refreshTokensRepository.delete({ userId });
   }
 
   private sanitizeUser(user: User) {

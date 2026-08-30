@@ -1,11 +1,19 @@
 import { toProfileUpdates } from './profile-updates';
 
 describe('toProfileUpdates', () => {
-  it('keeps only defined non-empty displayName values', () => {
+  it('trims non-empty displayName values', () => {
     expect(toProfileUpdates({ displayName: '  Ada  ' })).toEqual({
       displayName: 'Ada',
     });
-    expect(toProfileUpdates({ displayName: '   ' })).toEqual({});
+  });
+
+  it('writes null for blank or null displayName', () => {
+    expect(toProfileUpdates({ displayName: '   ' })).toEqual({
+      displayName: null,
+    });
+    expect(toProfileUpdates({ displayName: null })).toEqual({
+      displayName: null,
+    });
     expect(toProfileUpdates({ displayName: undefined })).toEqual({});
   });
 
@@ -27,14 +35,14 @@ describe('toProfileUpdates', () => {
     });
   });
 
-  it('omits empty strings so they cannot clear a stored value', () => {
+  it('treats empty strings as a clear', () => {
     expect(
       toProfileUpdates({
         bio: '',
         location: '  ',
         github: 'ada',
       }),
-    ).toEqual({ github: 'ada' });
+    ).toEqual({ bio: null, location: null, github: 'ada' });
   });
 
   it('does not treat a missing field as a clear', () => {

@@ -26,7 +26,7 @@ describe('Profile PATCH HTTP (e2e)', () => {
     await app.close();
   });
 
-  it('updates only sent fields, ignores empty strings, and clears with null', async () => {
+  it('updates only sent fields and clears emptied or null fields', async () => {
     const registered = await registerVerifiedUser(app, 'prof');
     const header = bearer(registered.session.accessToken);
 
@@ -56,7 +56,7 @@ describe('Profile PATCH HTTP (e2e)', () => {
     expect(afterPartial.body.payload).toEqual(
       expect.objectContaining({
         displayName: 'Ada Lovelace',
-        bio: 'Mathematician',
+        bio: null,
         location: 'Manchester',
         website: 'https://ada.dev',
         github: 'ada',
@@ -88,7 +88,7 @@ describe('Profile PATCH HTTP (e2e)', () => {
     );
   });
 
-  it('does not clear displayName when null or blank is sent', async () => {
+  it('clears displayName when null or blank is sent', async () => {
     const registered = await registerVerifiedUser(app, 'name');
     const header = bearer(registered.session.accessToken);
 
@@ -103,13 +103,19 @@ describe('Profile PATCH HTTP (e2e)', () => {
       .set(header)
       .send({ displayName: null })
       .expect(200);
-    expect(afterNull.body.payload.displayName).toBe('Kept Name');
+    expect(afterNull.body.payload.displayName).toBeNull();
+
+    await http(app)
+      .patch(`${PREFIX}/users/me`)
+      .set(header)
+      .send({ displayName: 'Restored' })
+      .expect(200);
 
     const afterBlank = await http(app)
       .patch(`${PREFIX}/users/me`)
       .set(header)
       .send({ displayName: '   ' })
       .expect(200);
-    expect(afterBlank.body.payload.displayName).toBe('Kept Name');
+    expect(afterBlank.body.payload.displayName).toBeNull();
   });
 });

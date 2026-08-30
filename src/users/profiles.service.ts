@@ -6,6 +6,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { toProfileUpdates } from './profile-updates';
 import { UsersService } from './users.service';
 import { FollowsService } from './follows.service';
+import { AuthService } from '../auth/auth.service';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
 
@@ -14,6 +15,7 @@ export class ProfilesService {
   constructor(
     private readonly usersService: UsersService,
     private readonly followsService: FollowsService,
+    private readonly authService: AuthService,
     @InjectRepository(Post)
     private readonly postsRepository: Repository<Post>,
     @InjectRepository(Article)
@@ -75,6 +77,12 @@ export class ProfilesService {
       await this.usersService.updateUser(currentUserId, updates);
     }
     return this.getMyProfile(currentUserId);
+  }
+
+  async deactivateMyAccount(currentUserId: string) {
+    await this.usersService.deactivateUser(currentUserId);
+    await this.authService.deleteAllTokensForUser(currentUserId);
+    return { message: 'Account deactivated' };
   }
 
   // ── Helpers ────────────────────────────────────────────────────────

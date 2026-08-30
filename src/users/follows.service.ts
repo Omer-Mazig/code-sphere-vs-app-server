@@ -92,10 +92,12 @@ export class FollowsService {
   // ── Queries ────────────────────────────────────────────────────────
 
   async getFollowers(targetUserId: string, query: UserQueryDto) {
+    await this.usersService.findUserOrFail(targetUserId);
     return this.getPaginatedFollowUsers('follower', targetUserId, query);
   }
 
   async getFollowing(targetUserId: string, query: UserQueryDto) {
+    await this.usersService.findUserOrFail(targetUserId);
     return this.getPaginatedFollowUsers('following', targetUserId, query);
   }
 
@@ -105,8 +107,8 @@ export class FollowsService {
     // To get followers we filter by followingId (target is being followed).
     // To get following we filter by followerId (target is doing the following).
     const [followersCount, followingCount] = await Promise.all([
-      this.followsRepository.count({ where: { followingId: targetUserId } }),
-      this.followsRepository.count({ where: { followerId: targetUserId } }),
+      this.countActiveFollowUsers('follower', targetUserId),
+      this.countActiveFollowUsers('following', targetUserId),
     ]);
 
     return { followersCount, followingCount };
@@ -233,7 +235,7 @@ export class FollowsService {
     if (mutualIds.length === 0) return [];
 
     const users = await this.usersRepository.find({
-      where: { id: In(mutualIds) },
+      where: { id: In(mutualIds), isActive: true },
       select: ['id', 'username', 'displayName', 'avatarUrl'],
       order: { username: 'ASC' },
     });
@@ -264,6 +266,20 @@ export class FollowsService {
 
   // ── Helpers ────────────────────────────────────────────────────────
 
+  private async countActiveFollowUsers(
+    relation: 'follower' | 'following',
+    targetUserId: string,
+  ) {
+    const whereColumn = relation === 'follower' ? 'followingId' : 'followerId';
+
+    return this.followsRepository
+      .createQueryBuilder('follow')
+      .innerJoin(`follow.${relation}`, relation)
+      .where(`follow.${whereColumn} = :targetUserId`, { targetUserId })
+      .andWhere(`${relation}.isActive = :isActive`, { isActive: true })
+      .getCount();
+  }
+
   private async getPaginatedFollowUsers(
     relation: 'follower' | 'following',
     targetUserId: string,
@@ -280,6 +296,7 @@ export class FollowsService {
       .createQueryBuilder('follow')
       .leftJoinAndSelect(`follow.${relation}`, relation)
       .where(`follow.${whereColumn} = :targetUserId`, { targetUserId })
+      .andWhere(`${relation}.isActive = :isActive`, { isActive: true })
       .orderBy(`${relation}.displayName`, 'ASC', 'NULLS LAST')
       .addOrderBy(`${relation}.username`, 'ASC')
       .skip(skip)

@@ -9,6 +9,7 @@ export const AUTH_AUDIT_EVENT = {
   RESEND_VERIFICATION: 'auth.resend_verification',
   PASSWORD_RESET_REQUEST: 'auth.password_reset_request',
   PASSWORD_RESET: 'auth.password_reset',
+  CHANGE_PASSWORD: 'auth.change_password',
 } as const;
 
 export type AuthAuditEvent =

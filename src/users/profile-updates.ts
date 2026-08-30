@@ -1,6 +1,7 @@
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
-export const CLEARABLE_PROFILE_FIELDS = [
+export const PROFILE_PATCH_FIELDS = [
+  'displayName',
   'bio',
   'avatarUrl',
   'website',
@@ -8,10 +9,10 @@ export const CLEARABLE_PROFILE_FIELDS = [
   'location',
 ] as const;
 
-export type ClearableProfileField = (typeof CLEARABLE_PROFILE_FIELDS)[number];
+export type ProfilePatchField = (typeof PROFILE_PATCH_FIELDS)[number];
 
 export type ProfileFieldUpdates = {
-  displayName?: string;
+  displayName?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
   website?: string | null;
@@ -19,22 +20,10 @@ export type ProfileFieldUpdates = {
   location?: string | null;
 };
 
-function trimmedOrOmitted(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
 export function toProfileUpdates(dto: UpdateProfileDto): ProfileFieldUpdates {
   const updates: ProfileFieldUpdates = {};
 
-  if (typeof dto.displayName === 'string') {
-    const displayName = trimmedOrOmitted(dto.displayName);
-    if (displayName) {
-      updates.displayName = displayName;
-    }
-  }
-
-  for (const field of CLEARABLE_PROFILE_FIELDS) {
+  for (const field of PROFILE_PATCH_FIELDS) {
     const value = dto[field];
     if (value === undefined) {
       continue;
@@ -43,10 +32,8 @@ export function toProfileUpdates(dto: UpdateProfileDto): ProfileFieldUpdates {
       updates[field] = null;
       continue;
     }
-    const nextValue = trimmedOrOmitted(value);
-    if (nextValue) {
-      updates[field] = nextValue;
-    }
+    const trimmed = value.trim();
+    updates[field] = trimmed.length > 0 ? trimmed : null;
   }
 
   return updates;

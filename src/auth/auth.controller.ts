@@ -10,8 +10,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import type { AuthRequestMetadata } from './auth.types';
-import { Public } from '../common/decorators';
+import { CurrentUser, Public } from '../common/decorators';
 import type { RequestWithContext } from '../common/middleware';
 import {
   ApiEnvelopeCreatedResponse,
@@ -147,6 +148,35 @@ export class AuthController {
       payload.password,
       this.requestMetadata(req),
     );
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiEnvelopeOkResponse(AuthSessionResponseDto)
+  @ApiStandardErrorResponses()
+  async changePassword(
+    @CurrentUser() userId: string,
+    @Body() payload: ChangePasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.changePassword(
+      userId,
+      payload,
+      this.requestMetadata(req),
+    );
+
+    this.setRefreshCookie(
+      res,
+      result.refreshToken,
+      result.refreshTokenExpiresAt,
+    );
+
+    return {
+      user: result.user,
+      accessToken: result.accessToken,
+    };
   }
 
   @Post('refresh')

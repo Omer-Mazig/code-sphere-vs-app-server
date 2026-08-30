@@ -141,7 +141,7 @@ export class PostsService {
       relations: ['author', 'sharedPost', 'sharedPost.author'],
     });
 
-    if (!post) {
+    if (!post || !post.author?.isActive) {
       throw new BusinessException(
         ErrorCode.POST_NOT_FOUND,
         `Post with id "${postId}" not found`,
@@ -184,6 +184,8 @@ export class PostsService {
     if (authorId) {
       qb.where('post.authorId = :authorId', { authorId });
     }
+
+    qb.andWhere('author.isActive = :isActive', { isActive: true });
 
     const [posts, total] = await qb.getManyAndCount();
 
@@ -373,12 +375,14 @@ export class PostsService {
     const countsRaw: { targetId: string; count: string }[] =
       await this.commentsRepository
         .createQueryBuilder('comment')
+        .innerJoin('comment.author', 'author')
         .select('comment.targetId', 'targetId')
         .addSelect('COUNT(*)', 'count')
         .where('comment.targetId IN (:...ids)', { ids })
         .andWhere('comment.targetType = :targetType', {
           targetType: TargetType.POST,
         })
+        .andWhere('author.isActive = :isActive', { isActive: true })
         .groupBy('comment.targetId')
         .getRawMany();
 
@@ -390,6 +394,7 @@ export class PostsService {
       where: {
         targetId: In(ids),
         targetType: TargetType.POST,
+        author: { isActive: true },
       },
       relations: ['author'],
       order: { createdAt: 'DESC' },

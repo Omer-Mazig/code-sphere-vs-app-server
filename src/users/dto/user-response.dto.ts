@@ -92,6 +92,8 @@ export class SuggestedUserResponseDto {
 
 export class FollowActionResponseDto extends MessageResponseDto {}
 
+export class DeactivateAccountResponseDto extends MessageResponseDto {}
+
 export class UserPreviewResponseDto {
   @ApiProperty()
   id!: string;

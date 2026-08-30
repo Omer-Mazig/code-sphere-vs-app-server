@@ -8,5 +8,6 @@ export {
   UserProfileResponseDto,
   FollowUserResponseDto,
   FollowActionResponseDto,
+  DeactivateAccountResponseDto,
   UserPreviewResponseDto,
 } from './user-response.dto';
