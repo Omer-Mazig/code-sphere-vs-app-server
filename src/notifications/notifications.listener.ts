@@ -83,6 +83,7 @@ export class NotificationsListener {
         postExcerpt: this.toExcerpt(post.content),
         createdAt: new Date().toISOString(),
       },
+      post.id,
     );
   }
 
@@ -130,6 +131,7 @@ export class NotificationsListener {
         commentExcerpt: this.toExcerpt(comment.content),
         createdAt: new Date().toISOString(),
       },
+      post.id,
     );
   }
 
@@ -191,6 +193,7 @@ export class NotificationsListener {
         replyExcerpt: this.toExcerpt(replyComment.content),
         createdAt: new Date().toISOString(),
       },
+      parentComment.targetId,
     );
   }
 
@@ -224,6 +227,7 @@ export class NotificationsListener {
         targetType: NotificationTargetType.USER,
         createdAt: new Date().toISOString(),
       },
+      event.followeeId,
     );
   }
 
@@ -278,6 +282,7 @@ export class NotificationsListener {
           excerpt,
           createdAt: new Date().toISOString(),
         },
+        event.postId ?? null,
       );
     }
   }
@@ -287,6 +292,7 @@ export class NotificationsListener {
     type: NotificationType,
     targetType: NotificationTargetType,
     payload: NotificationPayload,
+    targetId: string | null,
   ) {
     if (!(await this.notificationsService.isTypeEnabled(userId, type))) {
       return;
@@ -297,6 +303,7 @@ export class NotificationsListener {
       type,
       targetType,
       payload,
+      targetId,
     );
   }
 

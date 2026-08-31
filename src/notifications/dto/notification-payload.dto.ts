@@ -4,7 +4,27 @@ import {
   NotificationType,
 } from '../entities/notification.entity';
 
-export class PostLikedNotificationPayloadDto {
+class CollapsedActorsDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Up to the last 3 unique actor ids, most recent first',
+  })
+  actorIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Display names aligned with actorIds',
+  })
+  actorNames?: string[];
+
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Unique actor count for this unread collapsed row',
+  })
+  actorCount?: number;
+}
+
+export class PostLikedNotificationPayloadDto extends CollapsedActorsDto {
   @ApiProperty({ enum: [NotificationType.POST_LIKED] })
   type!: NotificationType.POST_LIKED;
 
@@ -30,7 +50,7 @@ export class PostLikedNotificationPayloadDto {
   createdAt!: string;
 }
 
-export class PostCommentedNotificationPayloadDto {
+export class PostCommentedNotificationPayloadDto extends CollapsedActorsDto {
   @ApiProperty({ enum: [NotificationType.POST_COMMENTED] })
   type!: NotificationType.POST_COMMENTED;
 
@@ -99,7 +119,7 @@ export class CommentRepliedNotificationPayloadDto {
   createdAt!: string;
 }
 
-export class NewFollowerNotificationPayloadDto {
+export class NewFollowerNotificationPayloadDto extends CollapsedActorsDto {
   @ApiProperty({ enum: [NotificationType.NEW_FOLLOWER] })
   type!: NotificationType.NEW_FOLLOWER;
 

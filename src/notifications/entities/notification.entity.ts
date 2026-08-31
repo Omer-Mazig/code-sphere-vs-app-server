@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   Index,
@@ -26,6 +27,10 @@ export enum NotificationTargetType {
 @Entity('notifications')
 @Index(['userId', 'isRead', 'createdAt'])
 @Index(['userId', 'targetType', 'isRead', 'createdAt'])
+@Index('UQ_notifications_unread_collapse', ['userId', 'type', 'targetType', 'targetId'], {
+  unique: true,
+  where: `"isRead" = false AND "type" IN ('POST_LIKED', 'POST_COMMENTED', 'NEW_FOLLOWER') AND "targetId" IS NOT NULL`,
+})
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -38,6 +43,9 @@ export class Notification {
 
   @Column({ type: 'enum', enum: NotificationTargetType, nullable: true })
   targetType: NotificationTargetType | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  targetId: string | null;
 
   @Column({ type: 'jsonb' })
   payload: Record<string, unknown>;
@@ -54,4 +62,7 @@ export class Notification {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

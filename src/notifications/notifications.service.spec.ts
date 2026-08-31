@@ -1,11 +1,44 @@
-import { NotificationType } from './entities/notification.entity';
+import { NotificationPayload } from './dto';
+import {
+  NotificationTargetType,
+  NotificationType,
+} from './entities/notification.entity';
 import { NotificationsService } from './notifications.service';
+
+function likedPayload(
+  overrides: Partial<
+    Extract<NotificationPayload, { type: NotificationType.POST_LIKED }>
+  > = {},
+): Extract<NotificationPayload, { type: NotificationType.POST_LIKED }> {
+  return {
+    type: NotificationType.POST_LIKED,
+    actorId: 'alice',
+    actorName: 'Alice',
+    actorAvatarUrl: null,
+    targetType: NotificationTargetType.POST,
+    postId: 'post-1',
+    postExcerpt: 'hello',
+    createdAt: '2026-08-31T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function createService(preferenceRepository?: {
   findOne: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
 }) {
+  const notificationsRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    create: jest.fn((value: object) => ({ ...value })),
+    save: jest.fn(async (value: unknown) => ({
+      ...(value as object),
+      id: 'notif-1',
+      createdAt: new Date('2026-08-31T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-31T00:00:00.000Z'),
+    })),
+    count: jest.fn().mockResolvedValue(1),
+  };
   const notificationStreamTokenRepository = {
     delete: jest.fn().mockResolvedValue({ affected: 5 }),
   };
@@ -15,12 +48,17 @@ function createService(preferenceRepository?: {
     save: jest.fn(async (value: unknown) => value),
   };
   const service = new NotificationsService(
-    {} as never,
+    notificationsRepository as never,
     notificationStreamTokenRepository as never,
     notificationPreferenceRepository as never,
   );
 
-  return { service, notificationStreamTokenRepository, notificationPreferenceRepository };
+  return {
+    service,
+    notificationsRepository,
+    notificationStreamTokenRepository,
+    notificationPreferenceRepository,
+  };
 }
 
 describe('NotificationsService', () => {
@@ -93,5 +131,68 @@ describe('NotificationsService', () => {
       newFollowers: true,
     });
     expect(notificationPreferenceRepository.save).toHaveBeenCalled();
+  });
+
+  it('inserts a collapsible notification when none is unread', async () => {
+    const { service, notificationsRepository } = createService();
+    const created = await service.createNotification(
+      'author-1',
+      NotificationType.POST_LIKED,
+      NotificationTargetType.POST,
+      likedPayload(),
+      'post-1',
+    );
+
+    expect(notificationsRepository.save).toHaveBeenCalledTimes(1);
+    expect(created.payload).toEqual(
+      expect.objectContaining({
+        actorIds: ['alice'],
+        actorCount: 1,
+      }),
+    );
+  });
+
+  it('updates the unread row instead of inserting a second like', async () => {
+    const { service, notificationsRepository } = createService();
+    notificationsRepository.findOne.mockResolvedValue({
+      id: 'notif-1',
+      userId: 'author-1',
+      type: NotificationType.POST_LIKED,
+      targetType: NotificationTargetType.POST,
+      targetId: 'post-1',
+      isRead: false,
+      readAt: null,
+      payload: {
+        type: NotificationType.POST_LIKED,
+        actorId: 'alice',
+        actorName: 'Alice',
+        actorIds: ['alice'],
+        actorNames: ['Alice'],
+        actorCount: 1,
+      },
+      createdAt: new Date('2026-08-31T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-31T00:00:00.000Z'),
+    });
+
+    const updated = await service.createNotification(
+      'author-1',
+      NotificationType.POST_LIKED,
+      NotificationTargetType.POST,
+      likedPayload({
+        actorId: 'bob',
+        actorName: 'Bob',
+        createdAt: '2026-08-31T00:01:00.000Z',
+      }),
+      'post-1',
+    );
+
+    expect(notificationsRepository.create).not.toHaveBeenCalled();
+    expect(updated.payload).toEqual(
+      expect.objectContaining({
+        actorId: 'bob',
+        actorCount: 2,
+        actorIds: ['bob', 'alice'],
+      }),
+    );
   });
 });

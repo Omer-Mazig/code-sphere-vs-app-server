@@ -2,11 +2,16 @@ import { HttpStatus, Injectable, MessageEvent } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
 import { randomBytes, createHash } from 'crypto';
-import { LessThanOrEqual, Repository } from 'typeorm';
+import { LessThanOrEqual, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedPayload } from '../common/dto/paginated-response.dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { UpdateNotificationPreferencesDto } from '../users/dto/notification-preferences.dto';
+import {
+  isCollapsibleNotificationType,
+  mergeCollapsedNotificationPayload,
+  seedCollapsedNotificationPayload,
+} from './collapse-notification-payload';
 import { NotificationPayload } from './dto';
 import {
   Notification,
@@ -16,10 +21,18 @@ import {
 import { NotificationPreference } from './entities/notification-preference.entity';
 import { NotificationStreamToken } from './entities/notification-stream-token.entity';
 
+type FormattedNotification = ReturnType<
+  NotificationsService['formatNotification']
+>;
+
 type NotificationStreamEvent =
   | {
       type: 'notification.created';
-      data: ReturnType<NotificationsService['formatNotification']>;
+      data: FormattedNotification;
+    }
+  | {
+      type: 'notification.updated';
+      data: FormattedNotification;
     }
   | { type: 'notification.unread_count'; data: { count: number } }
   | { type: 'ping'; data: { timestamp: string } };
@@ -169,31 +182,57 @@ export class NotificationsService {
     type: NotificationType,
     targetType: NotificationTargetType,
     payload: NotificationPayload,
+    targetId: string | null = null,
   ) {
+    if (isCollapsibleNotificationType(type) && targetId) {
+      const existing = await this.findUnreadCollapseRow(
+        userId,
+        type,
+        targetType,
+        targetId,
+      );
+      if (existing) {
+        return this.updateCollapsedNotification(existing, payload);
+      }
+    }
+
+    const payloadToStore = isCollapsibleNotificationType(type)
+      ? seedCollapsedNotificationPayload(payload)
+      : payload;
+
     const notification = this.notificationsRepository.create({
       userId,
       type,
       targetType,
-      payload: payload as unknown as Record<string, unknown>,
+      targetId,
+      payload: payloadToStore as unknown as Record<string, unknown>,
       isRead: false,
       readAt: null,
     });
 
-    const saved = await this.notificationsRepository.save(notification);
-    const formatted = this.formatNotification(saved);
+    try {
+      const saved = await this.notificationsRepository.save(notification);
+      return this.publishCreated(userId, saved);
+    } catch (error) {
+      if (
+        !this.isUniqueViolation(error) ||
+        !isCollapsibleNotificationType(type) ||
+        !targetId
+      ) {
+        throw error;
+      }
 
-    this.publish(userId, {
-      type: 'notification.created',
-      data: formatted,
-    });
-
-    const unreadCount = await this.getUnreadCount(userId);
-    this.publish(userId, {
-      type: 'notification.unread_count',
-      data: { count: unreadCount.count },
-    });
-
-    return formatted;
+      const existing = await this.findUnreadCollapseRow(
+        userId,
+        type,
+        targetType,
+        targetId,
+      );
+      if (!existing) {
+        throw error;
+      }
+      return this.updateCollapsedNotification(existing, payload);
+    }
   }
 
   async listForUser(
@@ -212,7 +251,8 @@ export class NotificationsService {
     const query = this.notificationsRepository
       .createQueryBuilder('notification')
       .where('notification.userId = :userId', { userId })
-      .orderBy('notification.createdAt', 'DESC')
+      .orderBy('notification.updatedAt', 'DESC')
+      .addOrderBy('notification.createdAt', 'DESC')
       .skip(skip)
       .take(limit);
 
@@ -334,6 +374,74 @@ export class NotificationsService {
     };
   }
 
+  private async findUnreadCollapseRow(
+    userId: string,
+    type: NotificationType,
+    targetType: NotificationTargetType,
+    targetId: string,
+  ) {
+    return this.notificationsRepository.findOne({
+      where: {
+        userId,
+        type,
+        targetType,
+        targetId,
+        isRead: false,
+      },
+    });
+  }
+
+  private async updateCollapsedNotification(
+    existing: Notification,
+    incoming: NotificationPayload,
+  ) {
+    existing.payload = mergeCollapsedNotificationPayload(
+      existing.payload,
+      incoming,
+    ) as unknown as Record<string, unknown>;
+    const saved = await this.notificationsRepository.save(existing);
+    const formatted = this.formatNotification(saved);
+
+    this.publish(existing.userId, {
+      type: 'notification.updated',
+      data: formatted,
+    });
+
+    const unreadCount = await this.getUnreadCount(existing.userId);
+    this.publish(existing.userId, {
+      type: 'notification.unread_count',
+      data: { count: unreadCount.count },
+    });
+
+    return formatted;
+  }
+
+  private async publishCreated(userId: string, saved: Notification) {
+    const formatted = this.formatNotification(saved);
+
+    this.publish(userId, {
+      type: 'notification.created',
+      data: formatted,
+    });
+
+    const unreadCount = await this.getUnreadCount(userId);
+    this.publish(userId, {
+      type: 'notification.unread_count',
+      data: { count: unreadCount.count },
+    });
+
+    return formatted;
+  }
+
+  private isUniqueViolation(error: unknown) {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+    return (
+      (error.driverError as { code?: string } | undefined)?.code === '23505'
+    );
+  }
+
   private formatNotification(notification: Notification) {
     return {
       id: notification.id,
@@ -342,6 +450,7 @@ export class NotificationsService {
       payload: notification.payload,
       isRead: notification.isRead,
       createdAt: notification.createdAt,
+      updatedAt: notification.updatedAt,
       readAt: notification.readAt,
     };
   }

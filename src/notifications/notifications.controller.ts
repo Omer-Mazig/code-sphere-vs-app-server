@@ -106,7 +106,7 @@ export class NotificationsController {
   @ApiProduces('text/event-stream')
   @ApiOkResponse({
     description:
-      'Server-Sent Events stream. Event names: notification.created (NotificationResponseDto), notification.unread_count (UnreadCountResponseDto), ping (NotificationStreamPingEventDto).',
+      'Server-Sent Events stream. Event names: notification.created (NotificationResponseDto), notification.updated (NotificationResponseDto), notification.unread_count (UnreadCountResponseDto), ping (NotificationStreamPingEventDto).',
     content: {
       'text/event-stream': {
         schema: {

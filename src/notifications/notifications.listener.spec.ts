@@ -126,6 +126,7 @@ describe('NotificationsListener', () => {
         postId: 'post-1',
         postExcerpt: `${'x'.repeat(79)}…`,
       }),
+      'post-1',
     );
   });
 
@@ -208,6 +209,7 @@ describe('NotificationsListener', () => {
         postId: 'post-1',
         excerpt: 'hello @grace @ada',
       }),
+      'post-1',
     );
   });
 

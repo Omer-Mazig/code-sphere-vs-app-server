@@ -61,6 +61,9 @@ export class NotificationResponseDto {
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   readAt!: string | null;
 }
