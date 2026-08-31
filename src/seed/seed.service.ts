@@ -10,6 +10,11 @@ import { Follow } from '../users/entities/follow.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Share } from '../interactions/entities/share.entity';
+import { Topic } from '../topics/entities/topic.entity';
+import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity';
+import { PostTopic } from '../topics/entities/post-topic.entity';
+import { ArticleTopic } from '../topics/entities/article-topic.entity';
+import { CURATED_TOPICS } from '../topics/topics.constants';
 // ----- Seed types -----
 
 type SeedUser = {
@@ -59,6 +64,14 @@ export class SeedService {
     private readonly commentRepository: Repository<Comment>,
     @InjectRepository(Share)
     private readonly shareRepository: Repository<Share>,
+    @InjectRepository(Topic)
+    private readonly topicRepository: Repository<Topic>,
+    @InjectRepository(UserFollowedTopic)
+    private readonly userFollowedTopicRepository: Repository<UserFollowedTopic>,
+    @InjectRepository(PostTopic)
+    private readonly postTopicRepository: Repository<PostTopic>,
+    @InjectRepository(ArticleTopic)
+    private readonly articleTopicRepository: Repository<ArticleTopic>,
   ) {}
 
   /**
@@ -95,6 +108,11 @@ export class SeedService {
       .delete()
       .where('1=1')
       .execute();
+    await this.topicRepository
+      .createQueryBuilder()
+      .delete()
+      .where('1=1')
+      .execute();
     await this.refreshTokenRepository
       .createQueryBuilder()
       .delete()
@@ -116,6 +134,9 @@ export class SeedService {
     const userMap = await this.seedUsers(this.users);
     const userIds = Object.values(userMap);
 
+    const topicMap = await this.seedTopics();
+    const topicFollowsCreated = await this.seedTopicFollows(userMap, topicMap);
+
     // 2. Follows (build a realistic social graph)
     const followsCreated = await this.seedFollows(userMap);
 
@@ -124,6 +145,8 @@ export class SeedService {
 
     // 4. Articles
     const articleEntities = await this.seedArticles(this.articles, userMap);
+
+    await this.seedContentTopics(postEntities, articleEntities, topicMap);
 
     // 5. Likes on posts & articles
     const likesCreated = await this.seedLikes(
@@ -148,6 +171,8 @@ export class SeedService {
 
     return {
       users: Object.keys(userMap).length,
+      topics: Object.keys(topicMap).length,
+      topicFollows: topicFollowsCreated,
       follows: followsCreated,
       posts: postEntities.length,
       articles: articleEntities.length,
@@ -189,6 +214,108 @@ export class SeedService {
     }
 
     return map;
+  }
+
+  // =================== Topics ===================
+
+  private async seedTopics() {
+    const map: Record<string, string> = {};
+
+    for (const topic of CURATED_TOPICS) {
+      let existing = await this.topicRepository.findOne({
+        where: { slug: topic.slug },
+      });
+      if (!existing) {
+        existing = await this.topicRepository.save(
+          this.topicRepository.create({
+            slug: topic.slug,
+            name: topic.name,
+            description: topic.description,
+          }),
+        );
+      }
+      map[topic.slug] = existing.id;
+    }
+
+    return map;
+  }
+
+  private async seedTopicFollows(
+    userMap: Record<string, string>,
+    topicMap: Record<string, string>,
+  ) {
+    const pairs: [string, string][] = [
+      ['sarah_dev', 'typescript'],
+      ['sarah_dev', 'react'],
+      ['alex_code', 'javascript'],
+      ['mike_ts', 'typescript'],
+      ['priya_devops', 'devops'],
+      ['priya_devops', 'kubernetes'],
+      ['lina_rust', 'rust'],
+      ['emma_go', 'go'],
+    ];
+
+    let created = 0;
+    for (const [username, slug] of pairs) {
+      const userId = userMap[username];
+      const topicId = topicMap[slug];
+      if (!userId || !topicId) {
+        continue;
+      }
+      const exists = await this.userFollowedTopicRepository.findOne({
+        where: { userId, topicId },
+      });
+      if (exists) {
+        continue;
+      }
+      await this.userFollowedTopicRepository.save(
+        this.userFollowedTopicRepository.create({ userId, topicId }),
+      );
+      created++;
+    }
+    return created;
+  }
+
+  private async seedContentTopics(
+    posts: Post[],
+    articles: Article[],
+    topicMap: Record<string, string>,
+  ) {
+    const typescript = topicMap.typescript;
+    const react = topicMap.react;
+    const devops = topicMap.devops;
+    if (typescript && posts[0]) {
+      await this.postTopicRepository.save(
+        this.postTopicRepository.create({
+          postId: posts[0].id,
+          topicId: typescript,
+        }),
+      );
+    }
+    if (react && posts[1]) {
+      await this.postTopicRepository.save(
+        this.postTopicRepository.create({
+          postId: posts[1].id,
+          topicId: react,
+        }),
+      );
+    }
+    if (typescript && articles[0]) {
+      await this.articleTopicRepository.save(
+        this.articleTopicRepository.create({
+          articleId: articles[0].id,
+          topicId: typescript,
+        }),
+      );
+    }
+    if (devops && articles[1]) {
+      await this.articleTopicRepository.save(
+        this.articleTopicRepository.create({
+          articleId: articles[1].id,
+          topicId: devops,
+        }),
+      );
+    }
   }
 
   // =================== Follows ===================

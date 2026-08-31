@@ -6,8 +6,11 @@ import {
   IsOptional,
   IsBoolean,
   IsUrl,
+  IsUUID,
+  ArrayMaxSize,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
 
 export class CreateArticleDto {
   @ApiProperty({ example: 'Understanding TypeScript Generics' })
@@ -33,4 +36,14 @@ export class CreateArticleDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: `Curated topic ids (max ${MAX_TOPICS_PER_ITEM})`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TOPICS_PER_ITEM)
+  @IsUUID('4', { each: true })
+  topicIds?: string[];
 }

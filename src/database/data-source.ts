@@ -13,6 +13,10 @@ import { Notification } from '../notifications/entities/notification.entity';
 import { NotificationPreference } from '../notifications/entities/notification-preference.entity';
 import { NotificationStreamToken } from '../notifications/entities/notification-stream-token.entity';
 import { MediaObject } from '../media/entities/media-object.entity';
+import { Topic } from '../topics/entities/topic.entity';
+import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity';
+import { PostTopic } from '../topics/entities/post-topic.entity';
+import { ArticleTopic } from '../topics/entities/article-topic.entity';
 
 config({ path: join(__dirname, '../../.env') });
 
@@ -36,6 +40,10 @@ export default new DataSource({
     NotificationPreference,
     NotificationStreamToken,
     MediaObject,
+    Topic,
+    UserFollowedTopic,
+    PostTopic,
+    ArticleTopic,
   ],
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   synchronize: false,

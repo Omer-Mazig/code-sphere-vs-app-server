@@ -10,6 +10,10 @@ import { Follow } from '../users/entities/follow.entity';
 import { Like } from '../interactions/entities/like.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Share } from '../interactions/entities/share.entity';
+import { Topic } from '../topics/entities/topic.entity';
+import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity';
+import { PostTopic } from '../topics/entities/post-topic.entity';
+import { ArticleTopic } from '../topics/entities/article-topic.entity';
 
 @Module({
   imports: [
@@ -22,6 +26,10 @@ import { Share } from '../interactions/entities/share.entity';
       Like,
       Comment,
       Share,
+      Topic,
+      UserFollowedTopic,
+      PostTopic,
+      ArticleTopic,
     ]),
   ],
   providers: [SeedService],

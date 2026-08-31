@@ -1,5 +1,6 @@
-import { IsString, MaxLength, IsOptional, IsUUID } from 'class-validator';
+import { IsString, MaxLength, IsOptional, IsUUID, IsArray, ArrayMaxSize } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
 
 export class CreatePostDto {
   @ApiPropertyOptional({ example: 'Just shipped a new feature!' })
@@ -14,4 +15,14 @@ export class CreatePostDto {
   @IsOptional()
   @IsUUID()
   sharedPostId?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: `Curated topic ids (max ${MAX_TOPICS_PER_ITEM})`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TOPICS_PER_ITEM)
+  @IsUUID('4', { each: true })
+  topicIds?: string[];
 }

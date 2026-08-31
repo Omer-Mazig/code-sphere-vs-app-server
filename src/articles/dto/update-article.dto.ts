@@ -6,8 +6,11 @@ import {
   IsOptional,
   IsBoolean,
   IsUrl,
+  IsUUID,
+  ArrayMaxSize,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
 
 export class UpdateArticleDto {
   @ApiPropertyOptional({ example: 'Updated Title' })
@@ -34,4 +37,14 @@ export class UpdateArticleDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: `Replace topics when sent (max ${MAX_TOPICS_PER_ITEM}). Empty array clears.`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TOPICS_PER_ITEM)
+  @IsUUID('4', { each: true })
+  topicIds?: string[];
 }

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
+import { TopicPreviewResponseDto } from '../../topics/dto';
 
 export class PostAuthorResponseDto {
   @ApiProperty()
@@ -55,6 +56,9 @@ export class PostResponseDto {
 
   @ApiProperty({ type: PostAuthorResponseDto, nullable: true })
   author!: PostAuthorResponseDto | null;
+
+  @ApiProperty({ type: [TopicPreviewResponseDto] })
+  topics!: TopicPreviewResponseDto[];
 
   @ApiProperty()
   likesCount!: number;

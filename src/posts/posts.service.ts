@@ -15,6 +15,8 @@ import { newlyMentionedUsernames } from '../common/utils';
 import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
 import { NotificationTargetType } from '../notifications/entities/notification.entity';
 import { FollowsService } from '../users/follows.service';
+import { TopicsService } from '../topics/topics.service';
+import { PostTopic } from '../topics/entities/post-topic.entity';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -31,6 +33,7 @@ export class PostsService {
     @InjectRepository(Share)
     private readonly sharesRepository: Repository<Share>,
     private readonly followsService: FollowsService,
+    private readonly topicsService: TopicsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -60,6 +63,11 @@ export class PostsService {
     });
 
     await this.postsRepository.save(post);
+
+    if (dto.topicIds !== undefined) {
+      const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
+      await this.topicsService.replacePostTopics(post.id, topicIds);
+    }
 
     if (resolvedSharedPostId) {
       await this.recordShare(authorId, resolvedSharedPostId);
@@ -96,6 +104,11 @@ export class PostsService {
     const previousContent = post.content;
     post.content = dto.content;
     await this.postsRepository.save(post);
+
+    if (dto.topicIds !== undefined) {
+      const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
+      await this.topicsService.replacePostTopics(post.id, topicIds);
+    }
 
     await this.emitMentionNotifications(
       userId,
@@ -151,7 +164,8 @@ export class PostsService {
     }
 
     const formatted = this.formatPost(post);
-    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withTopics] = await this.enrichWithTopics([formatted]);
+    const [withLikes] = await this.enrichWithLikes([withTopics], currentUserId);
     const [withShares] = await this.enrichWithShares(
       [withLikes],
       currentUserId,
@@ -169,7 +183,7 @@ export class PostsService {
   async getFeed(query: PostQueryDto, currentUserId?: string) {
     const page = query.page ?? DEFAULT_PAGE;
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
-    const { authorId } = query;
+    const { authorId, topicId } = query;
     const skip = (page - 1) * limit;
 
     const qb = this.postsRepository
@@ -185,12 +199,22 @@ export class PostsService {
       qb.where('post.authorId = :authorId', { authorId });
     }
 
+    if (topicId) {
+      qb.innerJoin(
+        PostTopic,
+        'postTopic',
+        'postTopic.postId = post.id AND postTopic.topicId = :topicId',
+        { topicId },
+      );
+    }
+
     qb.andWhere('author.isActive = :isActive', { isActive: true });
 
     const [posts, total] = await qb.getManyAndCount();
 
     const items = posts.map((post) => this.formatPost(post));
-    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const withTopics = await this.enrichWithTopics(items);
+    const withLikes = await this.enrichWithLikes(withTopics, currentUserId);
     const withShares = await this.enrichWithShares(withLikes, currentUserId);
     const withCommentPreview = await this.enrichWithCommentPreview(withShares);
     const enrichedItems = await this.enrichWithFollowing(
@@ -237,6 +261,16 @@ export class PostsService {
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
     };
+  }
+
+  private async enrichWithTopics<T extends { id: string }>(items: T[]) {
+    const map = await this.topicsService.topicsByPostIds(
+      items.map((item) => item.id),
+    );
+    return items.map((item) => ({
+      ...item,
+      topics: map.get(item.id) ?? [],
+    }));
   }
 
   private async resolveRootPost(postId: string): Promise<Post> {

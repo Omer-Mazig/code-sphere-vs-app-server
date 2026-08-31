@@ -15,6 +15,8 @@ import { flattenRichText, newlyMentionedUsernames } from '../common/utils';
 import { NotificationDomainEventName } from '../notifications/events/notification-domain-events';
 import { NotificationTargetType } from '../notifications/entities/notification.entity';
 import { FollowsService } from '../users/follows.service';
+import { TopicsService } from '../topics/topics.service';
+import { ArticleTopic } from '../topics/entities/article-topic.entity';
 
 @Injectable()
 export class ArticlesService {
@@ -26,6 +28,7 @@ export class ArticlesService {
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
     private readonly followsService: FollowsService,
+    private readonly topicsService: TopicsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -55,6 +58,11 @@ export class ArticlesService {
     });
 
     await this.articlesRepository.save(article);
+
+    if (dto.topicIds !== undefined) {
+      const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
+      await this.topicsService.replaceArticleTopics(article.id, topicIds);
+    }
 
     await this.emitMentionNotifications({
       actorId: authorId,
@@ -118,8 +126,14 @@ export class ArticlesService {
       article.slug = newSlug;
     }
 
-    Object.assign(article, definedUpdates);
+    const { topicIds: _topicIds, ...entityUpdates } = definedUpdates;
+    Object.assign(article, entityUpdates);
     await this.articlesRepository.save(article);
+
+    if (dto.topicIds !== undefined) {
+      const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
+      await this.topicsService.replaceArticleTopics(article.id, topicIds);
+    }
 
     await this.emitMentionNotifications({
       actorId: userId,
@@ -176,7 +190,8 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withTopics] = await this.enrichWithTopics([formatted]);
+    const [withLikes] = await this.enrichWithLikes([withTopics], currentUserId);
     const [withComments] = await this.enrichWithCommentCounts([withLikes]);
     const [enriched] = await this.enrichWithFollowing(
       [withComments],
@@ -201,7 +216,8 @@ export class ArticlesService {
     }
 
     const formatted = this.formatArticle(article);
-    const [withLikes] = await this.enrichWithLikes([formatted], currentUserId);
+    const [withTopics] = await this.enrichWithTopics([formatted]);
+    const [withLikes] = await this.enrichWithLikes([withTopics], currentUserId);
     const [withComments] = await this.enrichWithCommentCounts([withLikes]);
     const [enriched] = await this.enrichWithFollowing(
       [withComments],
@@ -211,7 +227,7 @@ export class ArticlesService {
   }
 
   async list(query: ArticleQueryDto, currentUserId?: string) {
-    const { page, limit, authorId, search, isPublished } = query;
+    const { page, limit, authorId, search, isPublished, topicId } = query;
     const skip = (page - 1) * limit;
 
     const qb = this.articlesRepository
@@ -235,12 +251,22 @@ export class ArticlesService {
       qb.andWhere('article.isPublished = :isPublished', { isPublished });
     }
 
+    if (topicId) {
+      qb.innerJoin(
+        ArticleTopic,
+        'articleTopic',
+        'articleTopic.articleId = article.id AND articleTopic.topicId = :topicId',
+        { topicId },
+      );
+    }
+
     qb.andWhere('author.isActive = :isActive', { isActive: true });
 
     const [articles, total] = await qb.getManyAndCount();
 
     const items = articles.map((article) => this.formatArticle(article));
-    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const withTopics = await this.enrichWithTopics(items);
+    const withLikes = await this.enrichWithLikes(withTopics, currentUserId);
     const withComments = await this.enrichWithCommentCounts(withLikes);
     const enrichedItems = await this.enrichWithFollowing(
       withComments,
@@ -314,7 +340,8 @@ export class ArticlesService {
       .filter((a): a is Article => a !== undefined);
 
     const items = ordered.map((article) => this.formatArticle(article));
-    const withLikes = await this.enrichWithLikes(items, currentUserId);
+    const withTopics = await this.enrichWithTopics(items);
+    const withLikes = await this.enrichWithLikes(withTopics, currentUserId);
     const withComments = await this.enrichWithCommentCounts(withLikes);
     const enrichedItems = await this.enrichWithFollowing(
       withComments,
@@ -343,6 +370,16 @@ export class ArticlesService {
       createdAt: article.createdAt,
       updatedAt: article.updatedAt,
     };
+  }
+
+  private async enrichWithTopics<T extends { id: string }>(items: T[]) {
+    const map = await this.topicsService.topicsByArticleIds(
+      items.map((item) => item.id),
+    );
+    return items.map((item) => ({
+      ...item,
+      topics: map.get(item.id) ?? [],
+    }));
   }
 
   private async enrichWithLikes<T extends { id: string }>(

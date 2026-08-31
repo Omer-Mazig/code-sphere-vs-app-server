@@ -31,6 +31,7 @@ import { InteractionsModule } from './interactions/interactions.module';
 import { SeedModule } from './seed/seed.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MediaModule } from './media/media.module';
+import { TopicsModule } from './topics/topics.module';
 import { HealthModule } from './health/health.module';
 import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
 
@@ -94,6 +95,7 @@ import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
     InteractionsModule,
     NotificationsModule,
     MediaModule,
+    TopicsModule,
     SeedModule,
     HealthModule,
   ],
