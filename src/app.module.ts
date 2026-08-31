@@ -14,6 +14,7 @@ import {
   authConfig,
   loggerConfig,
   emailConfig,
+  mediaConfig,
   envValidationSchema,
   buildPinoHttpParams,
 } from './config';
@@ -29,6 +30,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { InteractionsModule } from './interactions/interactions.module';
 import { SeedModule } from './seed/seed.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MediaModule } from './media/media.module';
 import { HealthModule } from './health/health.module';
 import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
 
@@ -43,6 +45,7 @@ import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
         authConfig,
         loggerConfig,
         emailConfig,
+        mediaConfig,
       ],
       validationSchema: envValidationSchema,
       validationOptions: {
@@ -90,6 +93,7 @@ import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
     ArticlesModule,
     InteractionsModule,
     NotificationsModule,
+    MediaModule,
     SeedModule,
     HealthModule,
   ],

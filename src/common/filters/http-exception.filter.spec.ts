@@ -149,6 +149,42 @@ describe('GlobalExceptionFilter', () => {
     expect(json.mock.calls[0][0].details).toBeUndefined();
   });
 
+  it('maps multer file-size errors to MEDIA_TOO_LARGE', () => {
+    const { host, json, status } = createHost();
+    const multerError = Object.assign(new Error('File too large'), {
+      name: 'MulterError',
+      code: 'LIMIT_FILE_SIZE',
+    });
+
+    filter.catch(multerError, host);
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 413,
+        errorCode: ErrorCode.MEDIA_TOO_LARGE,
+        message: 'File is too large',
+      }),
+    );
+  });
+  it('maps Nest payload-too-large errors to MEDIA_TOO_LARGE', () => {
+    const { host, json, status } = createHost();
+
+    filter.catch(
+      new HttpException('File too large', HttpStatus.PAYLOAD_TOO_LARGE),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 413,
+        errorCode: ErrorCode.MEDIA_TOO_LARGE,
+        message: 'File is too large',
+      }),
+    );
+  });
+
   it('maps unique database errors through mapDatabaseError', () => {
     const { host, json, status } = createHost();
     const exception = new QueryFailedError(

@@ -52,5 +52,8 @@ pids
 *.seed
 *.pid.lock
 
+# Local media uploads (MEDIA-001). Never store files in git.
+/uploads
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

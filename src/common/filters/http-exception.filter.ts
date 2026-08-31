@@ -49,11 +49,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = HttpStatus.BAD_REQUEST;
       errorCode = ErrorCode.VALIDATION_ERROR;
       clientMessage = 'Invalid request data';
-      details =
-        exception.details.length > 0 ? exception.details : undefined;
+      details = exception.details.length > 0 ? exception.details : undefined;
       internalMessage = details
         ? details.map((item) => `${item.field}: ${item.message}`).join('; ')
         : 'Invalid request data';
+    } else if (
+      isMulterFileTooLarge(exception) ||
+      isPayloadTooLarge(exception)
+    ) {
+      status = HttpStatus.PAYLOAD_TOO_LARGE;
+      errorCode = ErrorCode.MEDIA_TOO_LARGE;
+      clientMessage = 'File is too large';
+      internalMessage =
+        exception instanceof HttpException
+          ? this.extractInternalMessage(exception)
+          : this.extractUnknownMessage(exception);
     } else if (exception instanceof ThrottlerException) {
       status = HttpStatus.TOO_MANY_REQUESTS;
       errorCode = ErrorCode.RATE_LIMIT_EXCEEDED;
@@ -153,6 +163,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
   }
 
+  private extractUnknownMessage(exception: unknown): string {
+    if (exception instanceof Error) {
+      return exception.message;
+    }
+    return String(exception);
+  }
+
   private extractInternalMessage(exception: HttpException): string {
     const response = exception.getResponse();
 
@@ -172,4 +189,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     return exception.message;
   }
+}
+
+function isMulterFileTooLarge(exception: unknown): boolean {
+  return (
+    typeof exception === 'object' &&
+    exception !== null &&
+    'name' in exception &&
+    exception.name === 'MulterError' &&
+    'code' in exception &&
+    exception.code === 'LIMIT_FILE_SIZE'
+  );
+}
+
+function isPayloadTooLarge(exception: unknown): boolean {
+  return (
+    exception instanceof HttpException &&
+    exception.getStatus() === HttpStatus.PAYLOAD_TOO_LARGE
+  );
 }

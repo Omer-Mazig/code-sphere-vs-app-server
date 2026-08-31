@@ -12,6 +12,7 @@ import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { NotificationPreference } from '../notifications/entities/notification-preference.entity';
 import { NotificationStreamToken } from '../notifications/entities/notification-stream-token.entity';
+import { MediaObject } from '../media/entities/media-object.entity';
 
 config({ path: join(__dirname, '../../.env') });
 
@@ -34,6 +35,7 @@ export default new DataSource({
     Notification,
     NotificationPreference,
     NotificationStreamToken,
+    MediaObject,
   ],
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   synchronize: false,

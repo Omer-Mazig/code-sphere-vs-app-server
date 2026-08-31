@@ -3,6 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -25,7 +26,7 @@ export class SuccessEnvelopeInterceptor implements NestInterceptor {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<SuccessEnvelope> {
+  ): Observable<SuccessEnvelope | StreamableFile> {
     const request = context.switchToHttp().getRequest<RequestWithContext>();
     const accept = request.headers?.accept;
 
@@ -36,6 +37,10 @@ export class SuccessEnvelopeInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((data: unknown) => {
+        if (data instanceof StreamableFile) {
+          return data;
+        }
+
         const now = Date.now();
         const requestId = request.requestId ?? randomUUID();
         const timestamp = new Date(now).toISOString();

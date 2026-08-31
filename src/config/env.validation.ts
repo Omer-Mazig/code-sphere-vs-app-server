@@ -40,4 +40,16 @@ export const envValidationSchema = Joi.object({
   SMTP_USER: Joi.string().optional(),
   SMTP_PASSWORD: Joi.string().optional(),
   SMTP_FROM: Joi.string().optional(),
+
+  // Media (local FS in dev; S3 keys optional until a bucket exists)
+  MEDIA_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  MEDIA_UPLOAD_DIR: Joi.string().default('uploads'),
+  MEDIA_MAX_BYTES: Joi.number()
+    .integer()
+    .positive()
+    .default(10 * 1024 * 1024),
+  MEDIA_S3_BUCKET: Joi.string().optional().allow(''),
+  MEDIA_S3_REGION: Joi.string().optional().allow(''),
+  MEDIA_S3_ACCESS_KEY_ID: Joi.string().optional().allow(''),
+  MEDIA_S3_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
 });
