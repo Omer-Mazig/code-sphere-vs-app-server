@@ -4,6 +4,7 @@ export const PROFILE_PATCH_FIELDS = [
   'displayName',
   'bio',
   'avatarUrl',
+  'coverImageUrl',
   'website',
   'github',
   'location',
@@ -15,6 +16,7 @@ export type ProfileFieldUpdates = {
   displayName?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
+  coverImageUrl?: string | null;
   website?: string | null;
   github?: string | null;
   location?: string | null;

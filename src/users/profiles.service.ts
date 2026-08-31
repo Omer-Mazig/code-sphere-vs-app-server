@@ -1,21 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { toProfileUpdates } from './profile-updates';
+import { ProfileFieldUpdates, toProfileUpdates } from './profile-updates';
 import { UsersService } from './users.service';
 import { FollowsService } from './follows.service';
 import { AuthService } from '../auth/auth.service';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
+import { MediaService } from '../media/media.service';
+import { parseMediaObjectIdFromUrl } from '../media/media-object-url';
+import { BusinessException, ErrorCode } from '../common/errors';
 
 @Injectable()
 export class ProfilesService {
+  private readonly logger = new Logger(ProfilesService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly followsService: FollowsService,
     private readonly authService: AuthService,
+    private readonly mediaService: MediaService,
     @InjectRepository(Post)
     private readonly postsRepository: Repository<Post>,
     @InjectRepository(Article)
@@ -74,6 +80,8 @@ export class ProfilesService {
   async updateMyProfile(currentUserId: string, dto: UpdateProfileDto) {
     const updates = toProfileUpdates(dto);
     if (Object.keys(updates).length > 0) {
+      const user = await this.usersService.findUserOrFail(currentUserId);
+      await this.releaseReplacedMedia(user, updates, currentUserId);
       await this.usersService.updateUser(currentUserId, updates);
     }
     return this.getMyProfile(currentUserId);
@@ -103,6 +111,54 @@ export class ProfilesService {
     return { postsCount, articlesCount };
   }
 
+  private async releaseReplacedMedia(
+    user: User,
+    updates: ProfileFieldUpdates,
+    userId: string,
+  ) {
+    if ('avatarUrl' in updates) {
+      await this.deleteOwnedMediaAt(user.avatarUrl, updates.avatarUrl, userId);
+    }
+    if ('coverImageUrl' in updates) {
+      await this.deleteOwnedMediaAt(
+        user.coverImageUrl,
+        updates.coverImageUrl,
+        userId,
+      );
+    }
+  }
+
+  private async deleteOwnedMediaAt(
+    previousUrl: string | null | undefined,
+    nextUrl: string | null | undefined,
+    userId: string,
+  ) {
+    const previousId = parseMediaObjectIdFromUrl(previousUrl);
+    const nextId = parseMediaObjectIdFromUrl(nextUrl);
+    if (!previousId || previousId === nextId) {
+      return;
+    }
+
+    try {
+      await this.mediaService.delete(previousId, userId);
+    } catch (error) {
+      const errorCode =
+        error instanceof BusinessException ? error.errorCode : undefined;
+      if (
+        errorCode === ErrorCode.MEDIA_NOT_FOUND ||
+        errorCode === ErrorCode.AUTHORIZATION_ERROR
+      ) {
+        return;
+      }
+      this.logger.warn({
+        msg: 'Failed to delete replaced profile media',
+        previousId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   private formatProfile(user: User, options: { includeEmail: boolean }) {
     return {
       id: user.id,
@@ -111,6 +167,7 @@ export class ProfilesService {
       displayName: user.displayName,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
+      coverImageUrl: user.coverImageUrl,
       website: user.website,
       github: user.github,
       location: user.location,

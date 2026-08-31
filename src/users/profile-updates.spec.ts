@@ -25,6 +25,7 @@ describe('toProfileUpdates', () => {
         website: null,
         github: null,
         avatarUrl: null,
+        coverImageUrl: null,
       }),
     ).toEqual({
       bio: null,
@@ -32,6 +33,7 @@ describe('toProfileUpdates', () => {
       website: null,
       github: null,
       avatarUrl: null,
+      coverImageUrl: null,
     });
   });
 

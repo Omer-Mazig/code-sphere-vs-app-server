@@ -23,6 +23,9 @@ export class UserProfileResponseDto {
   avatarUrl!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
+  coverImageUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
   website!: string | null;
 
   @ApiProperty({ type: String, nullable: true })

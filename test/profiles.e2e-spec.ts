@@ -1,12 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { createTestingApp, resetDatabase } from './testing-app';
-import {
-  api,
-  bearer,
-  http,
-  registerVerifiedUser,
-} from './test-helpers';
+import { api, bearer, http, registerVerifiedUser } from './test-helpers';
 
 const PREFIX = api();
 
@@ -117,5 +112,46 @@ describe('Profile PATCH HTTP (e2e)', () => {
       .send({ displayName: '   ' })
       .expect(200);
     expect(afterBlank.body.payload.displayName).toBeNull();
+  });
+
+  it('sets avatar and cover from an uploaded media path and clears them', async () => {
+    const registered = await registerVerifiedUser(app, 'img');
+    const header = bearer(registered.session.accessToken);
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+
+    const avatarUpload = await http(app)
+      .post(`${PREFIX}/media`)
+      .set(header)
+      .attach('file', png, { filename: 'avatar.png', contentType: 'image/png' })
+      .expect(201);
+    const coverUpload = await http(app)
+      .post(`${PREFIX}/media`)
+      .set(header)
+      .attach('file', png, { filename: 'cover.png', contentType: 'image/png' })
+      .expect(201);
+
+    const avatarUrl = avatarUpload.body.payload.url as string;
+    const coverImageUrl = coverUpload.body.payload.url as string;
+
+    const saved = await http(app)
+      .patch(`${PREFIX}/users/me`)
+      .set(header)
+      .send({ avatarUrl, coverImageUrl })
+      .expect(200);
+
+    expect(saved.body.payload.avatarUrl).toBe(avatarUrl);
+    expect(saved.body.payload.coverImageUrl).toBe(coverImageUrl);
+
+    const cleared = await http(app)
+      .patch(`${PREFIX}/users/me`)
+      .set(header)
+      .send({ avatarUrl: null, coverImageUrl: null })
+      .expect(200);
+
+    expect(cleared.body.payload.avatarUrl).toBeNull();
+    expect(cleared.body.payload.coverImageUrl).toBeNull();
   });
 });

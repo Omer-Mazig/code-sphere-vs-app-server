@@ -8,6 +8,7 @@ import { Follow } from './entities/follow.entity';
 import { User } from './entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MediaModule } from '../media/media.module';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
 
@@ -16,6 +17,7 @@ import { Article } from '../articles/entities/article.entity';
     TypeOrmModule.forFeature([Follow, User, Post, Article]),
     AuthModule,
     NotificationsModule,
+    MediaModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, ProfilesService, FollowsService],

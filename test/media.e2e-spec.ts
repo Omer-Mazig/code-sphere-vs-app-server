@@ -69,6 +69,22 @@ describe('Media HTTP (e2e)', () => {
     expect(
       Buffer.isBuffer(fetched.body) ? fetched.body : Buffer.from(fetched.body),
     ).toEqual(PNG_1X1);
+
+    const publicFetch = await http(app)
+      .get(uploaded.body.payload.url)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+
+    expect(
+      Buffer.isBuffer(publicFetch.body)
+        ? publicFetch.body
+        : Buffer.from(publicFetch.body),
+    ).toEqual(PNG_1X1);
   });
 
   it('uploads a JPEG the same way', async () => {

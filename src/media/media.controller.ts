@@ -16,7 +16,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../common/decorators';
+import { CurrentUser, Public } from '../common/decorators';
 import {
   ApiEnvelopeCreatedResponse,
   ApiStandardErrorResponses,
@@ -55,7 +55,8 @@ export class MediaController {
   }
 
   @Get(':id')
-  @Header('Cache-Control', 'private, max-age=3600')
+  @Public()
+  @Header('Cache-Control', 'public, max-age=3600')
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiOkResponse({
     description: 'Raw image bytes. Not wrapped in the JSON success envelope.',

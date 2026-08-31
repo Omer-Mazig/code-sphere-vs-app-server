@@ -1,5 +1,13 @@
-import { IsOptional, IsString, MaxLength, IsUrl } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  IsUrl,
+  ValidateIf,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { PROFILE_IMAGE_REF_PATTERN } from '../../media/media-object-url';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({
@@ -23,13 +31,36 @@ export class UpdateProfileDto {
   bio?: string | null;
 
   @ApiPropertyOptional({
-    example: 'https://example.com/avatar.jpg',
+    example: '/api/media/550e8400-e29b-41d4-a716-446655440000',
     nullable: true,
     type: String,
+    description:
+      'Uploaded media path from POST /media, an https URL, or null to clear.',
   })
   @IsOptional()
-  @IsUrl()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(2048)
+  @Matches(PROFILE_IMAGE_REF_PATTERN, {
+    message: 'Must be an uploaded image or a valid URL',
+  })
   avatarUrl?: string | null;
+
+  @ApiPropertyOptional({
+    example: '/api/media/550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+    type: String,
+    description:
+      'Uploaded media path from POST /media, an https URL, or null to clear.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(2048)
+  @Matches(PROFILE_IMAGE_REF_PATTERN, {
+    message: 'Must be an uploaded image or a valid URL',
+  })
+  coverImageUrl?: string | null;
 
   @ApiPropertyOptional({
     example: 'https://example.com',

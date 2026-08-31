@@ -30,6 +30,9 @@ export class User {
   avatarUrl: string;
 
   @Column({ nullable: true })
+  coverImageUrl: string;
+
+  @Column({ nullable: true })
   website: string;
 
   @Column({ nullable: true })
