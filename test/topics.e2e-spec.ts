@@ -149,7 +149,7 @@ describe('Topics HTTP (e2e)', () => {
       .set(bearer(author.session.accessToken))
       .send({
         title: 'TS handbook',
-        content: [{ type: 'paragraph', content: 'body' }],
+        content: 'body',
         isPublished: true,
         topicIds: [typescript.id],
       })
@@ -163,7 +163,7 @@ describe('Topics HTTP (e2e)', () => {
       .set(bearer(author.session.accessToken))
       .send({
         title: 'Untagged note',
-        content: [{ type: 'paragraph', content: 'body' }],
+        content: 'body',
         isPublished: true,
       })
       .expect(201);

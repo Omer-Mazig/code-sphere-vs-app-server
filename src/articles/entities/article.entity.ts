@@ -23,8 +23,8 @@ export class Article {
   @Column({ unique: true })
   slug: string;
 
-  @Column({ type: 'jsonb' })
-  content: Record<string, unknown>[];
+  @Column({ type: 'text' })
+  content: string;
 
   @Column({ nullable: true })
   coverImageUrl: string;

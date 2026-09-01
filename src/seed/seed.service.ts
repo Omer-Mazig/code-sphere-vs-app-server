@@ -35,10 +35,15 @@ type SeedPost = {
   content: string;
 };
 
+type SeedArticleBlock = {
+  type: 'paragraph' | 'heading' | 'code';
+  content: string;
+};
+
 type SeedArticle = {
   authorUsername: string;
   title: string;
-  content: Record<string, unknown>[];
+  content: SeedArticleBlock[];
   coverImageUrl?: string;
   isPublished: boolean;
 };
@@ -441,7 +446,7 @@ export class SeedService {
           authorId,
           title: a.title,
           slug,
-          content: a.content,
+          content: this.articleBlocksToMarkdown(a.content),
           coverImageUrl: a.coverImageUrl,
           isPublished: a.isPublished,
         }),
@@ -652,6 +657,20 @@ export class SeedService {
       .replace(/[^\w\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
+  }
+
+  private articleBlocksToMarkdown(blocks: SeedArticleBlock[]): string {
+    return blocks
+      .map((block) => {
+        if (block.type === 'heading') {
+          return `## ${block.content}`;
+        }
+        if (block.type === 'code') {
+          return `\`\`\`ts\n${block.content}\n\`\`\``;
+        }
+        return block.content;
+      })
+      .join('\n\n');
   }
 
   // =================== Seed data ===================
@@ -1041,7 +1060,7 @@ export class SeedService {
         {
           type: 'paragraph',
           content:
-            "Generics might look scary at first, but they're just a way to make your code both flexible and type-safe. Start simple, add constraints when needed, and you'll be writing generic-heavy code in no time.",
+            "Generics might look scary at first, but they're just a way to make your code both flexible and type-safe. Start simple:\n\n- Add a single type parameter\n- Constrain it when the compiler asks\n- Use it in the components you already reuse\n\nYou'll be writing generic-heavy code in no time.",
         },
       ],
     },

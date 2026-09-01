@@ -17,7 +17,13 @@ describe('extractMentionedUsernames', () => {
 });
 
 describe('flattenRichText', () => {
-  it('joins string content from article blocks', () => {
+  it('passes markdown strings through unchanged', () => {
+    expect(flattenRichText('## Hello @ada\n\n- item')).toBe(
+      '## Hello @ada\n\n- item',
+    );
+  });
+
+  it('joins string content from nested objects', () => {
     expect(
       flattenRichText([
         { type: 'paragraph', content: 'hello @ada' },

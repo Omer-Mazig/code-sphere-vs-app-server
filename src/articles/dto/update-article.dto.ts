@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
+import { ARTICLE_CONTENT_MAX_LENGTH } from './create-article.dto';
 
 export class UpdateArticleDto {
   @ApiPropertyOptional({ example: 'Updated Title' })
@@ -21,12 +22,13 @@ export class UpdateArticleDto {
   title?: string;
 
   @ApiPropertyOptional({
-    type: 'array',
-    items: { type: 'object', additionalProperties: true },
+    example: '## Updated heading\n\nUpdated markdown body.',
   })
   @IsOptional()
-  @IsArray()
-  content?: Record<string, unknown>[];
+  @IsString()
+  @MinLength(1)
+  @MaxLength(ARTICLE_CONTENT_MAX_LENGTH)
+  content?: string;
 
   @ApiPropertyOptional({ example: 'https://example.com/cover.jpg' })
   @IsOptional()

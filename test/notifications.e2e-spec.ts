@@ -63,7 +63,7 @@ describe('Mention notifications HTTP (e2e)', () => {
       .set(authorHeader)
       .send({
         title: 'Draft with a mention',
-        content: [{ type: 'paragraph', content: `@${mentioned.user.username}` }],
+        content: `@${mentioned.user.username}`,
         isPublished: false,
       })
       .expect(201);

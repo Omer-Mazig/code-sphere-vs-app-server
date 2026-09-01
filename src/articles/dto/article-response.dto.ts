@@ -30,10 +30,9 @@ export class ArticleResponseDto {
   slug!: string;
 
   @ApiProperty({
-    type: 'array',
-    items: { type: 'object', additionalProperties: true },
+    example: '## Why Generics?\n\nThey let you write reusable, type-safe code.',
   })
-  content!: Record<string, unknown>[];
+  content!: string;
 
   @ApiProperty({ type: String, nullable: true })
   coverImageUrl!: string | null;

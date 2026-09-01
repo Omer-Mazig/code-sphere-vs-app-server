@@ -232,7 +232,7 @@ describe('Content HTTP (e2e)', () => {
       .set(authorHeader)
       .send({
         title: 'Follow me in articles',
-        content: [{ type: 'paragraph', content: 'hello' }],
+        content: 'hello',
         isPublished: true,
       })
       .expect(201);
@@ -298,7 +298,7 @@ describe('Content HTTP (e2e)', () => {
       .set(authorHeader)
       .send({
         title: 'Public discussion',
-        content: [{ type: 'paragraph', content: 'hello' }],
+        content: 'hello',
         isPublished: true,
       })
       .expect(201);

@@ -12,6 +12,8 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
 
+export const ARTICLE_CONTENT_MAX_LENGTH = 100_000;
+
 export class CreateArticleDto {
   @ApiProperty({ example: 'Understanding TypeScript Generics' })
   @IsString()
@@ -20,12 +22,13 @@ export class CreateArticleDto {
   title: string;
 
   @ApiProperty({
-    example: [{ type: 'paragraph', content: 'This is the article body...' }],
-    type: 'array',
-    items: { type: 'object', additionalProperties: true },
+    example:
+      '## Why Generics?\n\nThey let you write reusable, type-safe code.\n\n```ts\nfunction identity<T>(value: T): T {\n  return value;\n}\n```',
   })
-  @IsArray()
-  content: Record<string, unknown>[];
+  @IsString()
+  @MinLength(1)
+  @MaxLength(ARTICLE_CONTENT_MAX_LENGTH)
+  content: string;
 
   @ApiPropertyOptional({ example: 'https://example.com/cover.jpg' })
   @IsOptional()
