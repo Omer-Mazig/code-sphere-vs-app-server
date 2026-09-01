@@ -215,6 +215,15 @@ export class ArticlesService {
       );
     }
 
+    if (!article.isPublished && article.authorId !== currentUserId) {
+      throw new BusinessException(
+        ErrorCode.ARTICLE_NOT_FOUND,
+        `Unpublished article "${slug}" requested by "${currentUserId ?? 'guest'}"`,
+        'Article not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     const formatted = this.formatArticle(article);
     const [withTopics] = await this.enrichWithTopics([formatted]);
     const [withLikes] = await this.enrichWithLikes([withTopics], currentUserId);
