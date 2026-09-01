@@ -4,12 +4,16 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto';
 
 export class ArticleQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'When set, only articles by this author',
+  })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   authorId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Case-insensitive match on title or markdown body',
+  })
   @IsOptional()
   @IsString()
   search?: string;

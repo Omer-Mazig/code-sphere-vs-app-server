@@ -242,9 +242,10 @@ export class ArticlesService {
     }
 
     if (search) {
-      qb.andWhere('article.title ILIKE :search', {
-        search: `%${search}%`,
-      });
+      qb.andWhere(
+        '(article.title ILIKE :search OR article.content ILIKE :search)',
+        { search: `%${search}%` },
+      );
     }
 
     if (isPublished !== undefined) {
@@ -274,6 +275,36 @@ export class ArticlesService {
     );
 
     return { items: enrichedItems, total, page, limit };
+  }
+
+  async listPublishedAuthors() {
+    const rows = await this.articlesRepository
+      .createQueryBuilder('article')
+      .innerJoin('article.author', 'author')
+      .where('article.isPublished = :isPublished', { isPublished: true })
+      .andWhere('author.isActive = :isActive', { isActive: true })
+      .select('author.id', 'id')
+      .addSelect('author.username', 'username')
+      .addSelect('author.displayName', 'displayName')
+      .addSelect('author.avatarUrl', 'avatarUrl')
+      .groupBy('author.id')
+      .addGroupBy('author.username')
+      .addGroupBy('author.displayName')
+      .addGroupBy('author.avatarUrl')
+      .orderBy('author.username', 'ASC')
+      .getRawMany<{
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+      }>();
+
+    return rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+    }));
   }
 
   async getSuggestions(query: PaginationQueryDto, currentUserId?: string) {

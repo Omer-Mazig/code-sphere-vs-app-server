@@ -7,4 +7,5 @@ export { ArticleQueryDto } from './article-query.dto';
 export {
   ArticleResponseDto,
   ArticleDeletedResponseDto,
+  ArticleListAuthorResponseDto,
 } from './article-response.dto';

@@ -63,3 +63,17 @@ export class ArticleResponseDto {
 }
 
 export class ArticleDeletedResponseDto extends MessageResponseDto {}
+
+export class ArticleListAuthorResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  displayName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  avatarUrl!: string | null;
+}

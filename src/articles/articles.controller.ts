@@ -16,10 +16,12 @@ import { ArticleQueryDto } from './dto/article-query.dto';
 import { PaginationQueryDto } from '../common/dto';
 import {
   ArticleDeletedResponseDto,
+  ArticleListAuthorResponseDto,
   ArticleResponseDto,
 } from './dto/article-response.dto';
 import { Public, CurrentUser, Paginated } from '../common/decorators';
 import {
+  ApiEnvelopeArrayOkResponse,
   ApiEnvelopeCreatedResponse,
   ApiEnvelopeOkResponse,
   ApiEnvelopePaginatedOkResponse,
@@ -43,7 +45,7 @@ export class ArticlesController {
     return this.articlesService.list(query, currentUserId);
   }
 
-  // Must be declared before ":slug" so "suggestions" is not captured as a param
+  // Must be declared before ":slug" so static paths are not captured as a param
   @Get('suggestions')
   @Public()
   @Paginated()
@@ -54,6 +56,14 @@ export class ArticlesController {
     @CurrentUser() currentUserId: string | undefined,
   ) {
     return this.articlesService.getSuggestions(query, currentUserId);
+  }
+
+  @Get('authors')
+  @Public()
+  @ApiEnvelopeArrayOkResponse(ArticleListAuthorResponseDto)
+  @ApiStandardErrorResponses()
+  listPublishedAuthors() {
+    return this.articlesService.listPublishedAuthors();
   }
 
   @Get(':slug')
