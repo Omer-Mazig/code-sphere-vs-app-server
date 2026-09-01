@@ -14,6 +14,7 @@ import {
   ApiStandardErrorResponses,
 } from '../common/swagger';
 import {
+  TopicDetailResponseDto,
   TopicFollowActionResponseDto,
   TopicResponseDto,
 } from './dto';
@@ -30,6 +31,18 @@ export class TopicsController {
   @ApiStandardErrorResponses()
   list(@CurrentUser() currentUserId: string | undefined) {
     return this.topicsService.list(currentUserId);
+  }
+
+  @Get(':slug')
+  @Public()
+  @ApiParam({ name: 'slug', type: String })
+  @ApiEnvelopeOkResponse(TopicDetailResponseDto)
+  @ApiStandardErrorResponses()
+  getBySlug(
+    @Param('slug') slug: string,
+    @CurrentUser() currentUserId: string | undefined,
+  ) {
+    return this.topicsService.getBySlug(slug, currentUserId);
   }
 
   @Post(':id/follow')

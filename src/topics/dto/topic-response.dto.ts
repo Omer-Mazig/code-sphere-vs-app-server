@@ -20,4 +20,15 @@ export class TopicResponseDto extends TopicPreviewResponseDto {
   isFollowed!: boolean;
 }
 
+export class TopicDetailResponseDto extends TopicResponseDto {
+  @ApiProperty()
+  postCount!: number;
+
+  @ApiProperty()
+  articleCount!: number;
+
+  @ApiProperty()
+  followerCount!: number;
+}
+
 export class TopicFollowActionResponseDto extends MessageResponseDto {}

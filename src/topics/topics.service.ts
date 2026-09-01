@@ -39,6 +39,39 @@ export class TopicsService {
     return topics.map((topic) => this.formatTopic(topic, followed.has(topic.id)));
   }
 
+  async getBySlug(slug: string, currentUserId?: string) {
+    const topic = await this.topicsRepository.findOne({ where: { slug } });
+    if (!topic) {
+      throw new BusinessException(
+        ErrorCode.TOPIC_NOT_FOUND,
+        `Topic slug "${slug}" was not found`,
+        'Topic not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const [followed, postCount, articleCount, followerCount] = await Promise.all(
+      [
+        this.followedSet(currentUserId, [topic.id]),
+        this.postTopicsRepository.count({ where: { topicId: topic.id } }),
+        this.articleTopicsRepository
+          .createQueryBuilder('articleTopic')
+          .innerJoin('articleTopic.article', 'article')
+          .where('articleTopic.topicId = :topicId', { topicId: topic.id })
+          .andWhere('article.isPublished = :isPublished', { isPublished: true })
+          .getCount(),
+        this.followedTopicsRepository.count({ where: { topicId: topic.id } }),
+      ],
+    );
+
+    return {
+      ...this.formatTopic(topic, followed.has(topic.id)),
+      postCount,
+      articleCount,
+      followerCount,
+    };
+  }
+
   async follow(userId: string, topicId: string) {
     await this.findTopicOrFail(topicId);
 

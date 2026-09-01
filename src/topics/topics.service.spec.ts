@@ -16,18 +16,21 @@ function createService(overrides?: {
     save: jest.fn(),
     create: jest.fn((value) => value),
     remove: jest.fn(),
+    count: jest.fn(),
   };
   const postTopicsRepository = {
     find: jest.fn(),
     delete: jest.fn(),
     save: jest.fn(),
     create: jest.fn((value) => value),
+    count: jest.fn(),
   };
   const articleTopicsRepository = {
     find: jest.fn(),
     delete: jest.fn(),
     save: jest.fn(),
     create: jest.fn((value) => value),
+    createQueryBuilder: jest.fn(),
   };
 
   const service = new TopicsService(
@@ -37,7 +40,13 @@ function createService(overrides?: {
     articleTopicsRepository as never,
   );
 
-  return { service, topicsRepository };
+  return {
+    service,
+    topicsRepository,
+    followedTopicsRepository,
+    postTopicsRepository,
+    articleTopicsRepository,
+  };
 }
 
 describe('TopicsService.resolveTopicIds', () => {
@@ -82,5 +91,54 @@ describe('TopicsService.resolveTopicIds', () => {
       'a',
       'b',
     ]);
+  });
+});
+
+describe('TopicsService.getBySlug', () => {
+  it('returns counts and isFollowed for an existing slug', async () => {
+    const {
+      service,
+      topicsRepository,
+      followedTopicsRepository,
+      postTopicsRepository,
+      articleTopicsRepository,
+    } = createService();
+
+    topicsRepository.findOne.mockResolvedValue({
+      id: 't1',
+      slug: 'typescript',
+      name: 'TypeScript',
+      description: 'Types',
+    });
+    postTopicsRepository.count.mockResolvedValue(4);
+    followedTopicsRepository.count.mockResolvedValue(7);
+    followedTopicsRepository.find.mockResolvedValue([{ topicId: 't1' }]);
+    articleTopicsRepository.createQueryBuilder.mockReturnValue({
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(2),
+    });
+
+    await expect(service.getBySlug('typescript', 'user-1')).resolves.toEqual({
+      id: 't1',
+      slug: 'typescript',
+      name: 'TypeScript',
+      description: 'Types',
+      isFollowed: true,
+      postCount: 4,
+      articleCount: 2,
+      followerCount: 7,
+    });
+  });
+
+  it('404s unknown slugs', async () => {
+    const { service, topicsRepository } = createService();
+    topicsRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.getBySlug('missing')).rejects.toMatchObject({
+      errorCode: ErrorCode.TOPIC_NOT_FOUND,
+      httpStatus: HttpStatus.NOT_FOUND,
+    });
   });
 });

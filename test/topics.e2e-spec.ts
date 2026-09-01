@@ -175,4 +175,24 @@ describe('Topics HTTP (e2e)', () => {
     expect(filtered.body.payload.items).toHaveLength(1);
     expect(filtered.body.payload.items[0].id).toBe(tagged.body.payload.id);
   });
+
+  it('returns a topic hub payload by slug', async () => {
+    const topic = await insertTopic(dataSource, 'rust', 'Rust');
+    const guest = await http(app).get(`${PREFIX}/topics/rust`).expect(200);
+    expect(guest.body.payload).toEqual(
+      expect.objectContaining({
+        id: topic.id,
+        slug: 'rust',
+        name: 'Rust',
+        isFollowed: false,
+        postCount: 0,
+        articleCount: 0,
+        followerCount: 0,
+      }),
+    );
+
+    await http(app).get(`${PREFIX}/topics/no-such-topic`).expect(404).expect((res) => {
+      expect(res.body.errorCode).toBe(ErrorCode.TOPIC_NOT_FOUND);
+    });
+  });
 });

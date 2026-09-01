@@ -1,4 +1,5 @@
 export {
+  TopicDetailResponseDto,
   TopicFollowActionResponseDto,
   TopicPreviewResponseDto,
   TopicResponseDto,
