@@ -104,21 +104,38 @@ export class CommentsService {
           replierId: currentUserId,
         });
       }
-    } else if (dto.targetType === TargetType.POST) {
-      const postAuthorId = await this.getTargetAuthorId(
+    } else {
+      const targetAuthorId = await this.getTargetAuthorId(
         dto.targetId,
         dto.targetType,
       );
       if (
-        postAuthorId &&
-        postAuthorId !== currentUserId &&
-        !mentionedUserIds.has(postAuthorId)
+        targetAuthorId &&
+        targetAuthorId !== currentUserId &&
+        !mentionedUserIds.has(targetAuthorId)
       ) {
-        this.eventEmitter.emit(NotificationDomainEventName.POST_COMMENTED, {
-          postId: dto.targetId,
-          commentId: comment.id,
-          commenterId: currentUserId,
-        });
+        switch (dto.targetType) {
+          case TargetType.POST:
+            await this.eventEmitter.emitAsync(
+              NotificationDomainEventName.POST_COMMENTED,
+              {
+                postId: dto.targetId,
+                commentId: comment.id,
+                commenterId: currentUserId,
+              },
+            );
+            break;
+          case TargetType.ARTICLE:
+            await this.eventEmitter.emitAsync(
+              NotificationDomainEventName.ARTICLE_COMMENTED,
+              {
+                articleId: dto.targetId,
+                commentId: comment.id,
+                commenterId: currentUserId,
+              },
+            );
+            break;
+        }
       }
     }
 

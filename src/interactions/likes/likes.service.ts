@@ -44,11 +44,25 @@ export class LikesService {
 
     await this.likesRepository.save(like);
 
-    if (targetType === TargetType.POST) {
-      this.eventEmitter.emit(NotificationDomainEventName.POST_LIKED, {
-        postId: targetId,
-        likerId: userId,
-      });
+    switch (targetType) {
+      case TargetType.POST:
+        await this.eventEmitter.emitAsync(
+          NotificationDomainEventName.POST_LIKED,
+          {
+            postId: targetId,
+            likerId: userId,
+          },
+        );
+        break;
+      case TargetType.ARTICLE:
+        await this.eventEmitter.emitAsync(
+          NotificationDomainEventName.ARTICLE_LIKED,
+          {
+            articleId: targetId,
+            likerId: userId,
+          },
+        );
+        break;
     }
 
     return { message: 'Liked successfully' };

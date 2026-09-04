@@ -8,6 +8,8 @@ import { TargetType } from '../interactions/entities/like.entity';
 import { Post } from '../posts/entities/post.entity';
 import { User } from '../users/entities/user.entity';
 import {
+  ArticleCommentedEvent,
+  ArticleLikedEvent,
   CommentRepliedEvent,
   NotificationDomainEventName,
   PostCommentedEvent,
@@ -47,18 +49,20 @@ export class NotificationsListener {
 
   @OnEvent(NotificationDomainEventName.POST_LIKED)
   async handlePostLiked(event: PostLikedEvent) {
-    const [post, actor] = await Promise.all([
-      this.postsRepository.findOne({
-        where: { id: event.postId },
-        select: ['id', 'authorId', 'content'],
-      }),
-      this.usersRepository.findOne({
-        where: { id: event.likerId },
-        select: ['id', 'username', 'displayName', 'avatarUrl'],
-      }),
-    ]);
+    const actor = await this.findActor(event.likerId);
+    if (!actor) {
+      this.logger.warn(
+        `Skip POST_LIKED notification (post="${event.postId}", actor="${event.likerId}")`,
+      );
+      return;
+    }
 
-    if (!post || !actor) {
+    const post = await this.postsRepository.findOne({
+      where: { id: event.postId },
+      select: ['id', 'authorId', 'content'],
+    });
+
+    if (!post) {
       this.logger.warn(
         `Skip POST_LIKED notification (post="${event.postId}", actor="${event.likerId}")`,
       );
@@ -89,22 +93,27 @@ export class NotificationsListener {
 
   @OnEvent(NotificationDomainEventName.POST_COMMENTED)
   async handlePostCommented(event: PostCommentedEvent) {
-    const [post, comment, actor] = await Promise.all([
-      this.postsRepository.findOne({
-        where: { id: event.postId },
-        select: ['id', 'authorId', 'content'],
-      }),
+    const [comment, actor] = await Promise.all([
       this.commentsRepository.findOne({
         where: { id: event.commentId },
         select: ['id', 'content'],
       }),
-      this.usersRepository.findOne({
-        where: { id: event.commenterId },
-        select: ['id', 'username', 'displayName', 'avatarUrl'],
-      }),
+      this.findActor(event.commenterId),
     ]);
 
-    if (!post || !comment || !actor) {
+    if (!comment || !actor) {
+      this.logger.warn(
+        `Skip POST_COMMENTED notification (post="${event.postId}", comment="${event.commentId}", actor="${event.commenterId}")`,
+      );
+      return;
+    }
+
+    const post = await this.postsRepository.findOne({
+      where: { id: event.postId },
+      select: ['id', 'authorId', 'content'],
+    });
+
+    if (!post) {
       this.logger.warn(
         `Skip POST_COMMENTED notification (post="${event.postId}", comment="${event.commentId}", actor="${event.commenterId}")`,
       );
@@ -135,6 +144,103 @@ export class NotificationsListener {
     );
   }
 
+  @OnEvent(NotificationDomainEventName.ARTICLE_LIKED)
+  async handleArticleLiked(event: ArticleLikedEvent) {
+    const actor = await this.findActor(event.likerId);
+    if (!actor) {
+      this.logger.warn(
+        `Skip ARTICLE_LIKED notification (article="${event.articleId}", actor="${event.likerId}")`,
+      );
+      return;
+    }
+
+    const article = await this.articlesRepository.findOne({
+      where: { id: event.articleId },
+      select: ['id', 'authorId', 'title', 'slug', 'isPublished'],
+    });
+
+    if (!article) {
+      this.logger.warn(
+        `Skip ARTICLE_LIKED notification (article="${event.articleId}", actor="${event.likerId}")`,
+      );
+      return;
+    }
+
+    if (!article.isPublished || article.authorId === actor.id) {
+      return;
+    }
+
+    await this.notifyIfEnabled(
+      article.authorId,
+      NotificationType.ARTICLE_LIKED,
+      NotificationTargetType.ARTICLE,
+      {
+        type: NotificationType.ARTICLE_LIKED,
+        actorId: actor.id,
+        actorName: actor.displayName ?? actor.username,
+        actorAvatarUrl: actor.avatarUrl,
+        targetType: NotificationTargetType.ARTICLE,
+        articleSlug: article.slug,
+        articleExcerpt: this.toExcerpt(article.title),
+        createdAt: new Date().toISOString(),
+      },
+      article.id,
+    );
+  }
+
+  @OnEvent(NotificationDomainEventName.ARTICLE_COMMENTED)
+  async handleArticleCommented(event: ArticleCommentedEvent) {
+    const [comment, actor] = await Promise.all([
+      this.commentsRepository.findOne({
+        where: { id: event.commentId },
+        select: ['id', 'content'],
+      }),
+      this.findActor(event.commenterId),
+    ]);
+
+    if (!comment || !actor) {
+      this.logger.warn(
+        `Skip ARTICLE_COMMENTED notification (article="${event.articleId}", comment="${event.commentId}", actor="${event.commenterId}")`,
+      );
+      return;
+    }
+
+    const article = await this.articlesRepository.findOne({
+      where: { id: event.articleId },
+      select: ['id', 'authorId', 'title', 'slug', 'isPublished'],
+    });
+
+    if (!article) {
+      this.logger.warn(
+        `Skip ARTICLE_COMMENTED notification (article="${event.articleId}", comment="${event.commentId}", actor="${event.commenterId}")`,
+      );
+      return;
+    }
+
+    if (!article.isPublished || article.authorId === actor.id) {
+      return;
+    }
+
+    await this.notifyIfEnabled(
+      article.authorId,
+      NotificationType.ARTICLE_COMMENTED,
+      NotificationTargetType.ARTICLE,
+      {
+        type: NotificationType.ARTICLE_COMMENTED,
+        actorId: actor.id,
+        actorName: actor.displayName ?? actor.username,
+        actorAvatarUrl: actor.avatarUrl,
+        targetType: NotificationTargetType.ARTICLE,
+        articleSlug: article.slug,
+        articleExcerpt: this.toExcerpt(article.title),
+        commentId: comment.id,
+        commentExcerpt: this.toExcerpt(comment.content),
+        createdAt: new Date().toISOString(),
+      },
+      article.id,
+    );
+  }
+
   @OnEvent(NotificationDomainEventName.COMMENT_REPLIED)
   async handleCommentReplied(event: CommentRepliedEvent) {
     const [parentComment, replyComment, actor] = await Promise.all([
@@ -146,10 +252,7 @@ export class NotificationsListener {
         where: { id: event.replyCommentId },
         select: ['id', 'content'],
       }),
-      this.usersRepository.findOne({
-        where: { id: event.replierId },
-        select: ['id', 'username', 'displayName', 'avatarUrl'],
-      }),
+      this.findActor(event.replierId),
     ]);
 
     if (!parentComment || !replyComment || !actor) {
@@ -199,11 +302,7 @@ export class NotificationsListener {
 
   @OnEvent(NotificationDomainEventName.USER_FOLLOWED)
   async handleUserFollowed(event: UserFollowedEvent) {
-    const actor = await this.usersRepository.findOne({
-      where: { id: event.followerId },
-      select: ['id', 'username', 'displayName', 'avatarUrl'],
-    });
-
+    const actor = await this.findActor(event.followerId);
     if (!actor) {
       this.logger.warn(
         `Skip USER_FOLLOWED notification (actor="${event.followerId}")`,
@@ -241,10 +340,7 @@ export class NotificationsListener {
     }
 
     const [actor, mentionedUsers] = await Promise.all([
-      this.usersRepository.findOne({
-        where: { id: event.actorId },
-        select: ['id', 'username', 'displayName', 'avatarUrl'],
-      }),
+      this.findActor(event.actorId),
       this.usersRepository
         .createQueryBuilder('user')
         .select(['user.id', 'user.username'])
@@ -285,6 +381,13 @@ export class NotificationsListener {
         event.postId ?? null,
       );
     }
+  }
+
+  private async findActor(id: string) {
+    return this.usersRepository.findOne({
+      where: { id },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+    });
   }
 
   private async notifyIfEnabled(

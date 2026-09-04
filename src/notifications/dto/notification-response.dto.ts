@@ -5,6 +5,8 @@ import {
   NotificationType,
 } from '../entities/notification.entity';
 import {
+  ArticleCommentedNotificationPayloadDto,
+  ArticleLikedNotificationPayloadDto,
   CommentRepliedNotificationPayloadDto,
   NewFollowerNotificationPayloadDto,
   NotificationPayload,
@@ -16,6 +18,8 @@ import {
 @ApiExtraModels(
   PostLikedNotificationPayloadDto,
   PostCommentedNotificationPayloadDto,
+  ArticleLikedNotificationPayloadDto,
+  ArticleCommentedNotificationPayloadDto,
   CommentRepliedNotificationPayloadDto,
   NewFollowerNotificationPayloadDto,
   UserMentionedNotificationPayloadDto,
@@ -38,6 +42,8 @@ export class NotificationResponseDto {
     oneOf: [
       { $ref: getSchemaPath(PostLikedNotificationPayloadDto) },
       { $ref: getSchemaPath(PostCommentedNotificationPayloadDto) },
+      { $ref: getSchemaPath(ArticleLikedNotificationPayloadDto) },
+      { $ref: getSchemaPath(ArticleCommentedNotificationPayloadDto) },
       { $ref: getSchemaPath(CommentRepliedNotificationPayloadDto) },
       { $ref: getSchemaPath(NewFollowerNotificationPayloadDto) },
       { $ref: getSchemaPath(UserMentionedNotificationPayloadDto) },
@@ -47,6 +53,8 @@ export class NotificationResponseDto {
       mapping: {
         POST_LIKED: getSchemaPath(PostLikedNotificationPayloadDto),
         POST_COMMENTED: getSchemaPath(PostCommentedNotificationPayloadDto),
+        ARTICLE_LIKED: getSchemaPath(ArticleLikedNotificationPayloadDto),
+        ARTICLE_COMMENTED: getSchemaPath(ArticleCommentedNotificationPayloadDto),
         COMMENT_REPLIED: getSchemaPath(CommentRepliedNotificationPayloadDto),
         NEW_FOLLOWER: getSchemaPath(NewFollowerNotificationPayloadDto),
         USER_MENTIONED: getSchemaPath(UserMentionedNotificationPayloadDto),

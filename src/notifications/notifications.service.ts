@@ -102,9 +102,11 @@ export class NotificationsService {
       case NotificationType.USER_MENTIONED:
         return prefs.mentions;
       case NotificationType.POST_COMMENTED:
+      case NotificationType.ARTICLE_COMMENTED:
       case NotificationType.COMMENT_REPLIED:
         return prefs.comments;
       case NotificationType.POST_LIKED:
+      case NotificationType.ARTICLE_LIKED:
         return prefs.likes;
       case NotificationType.NEW_FOLLOWER:
         return prefs.newFollowers;

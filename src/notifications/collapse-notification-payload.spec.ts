@@ -32,6 +32,12 @@ describe('isCollapsibleNotificationType', () => {
     expect(isCollapsibleNotificationType(NotificationType.POST_COMMENTED)).toBe(
       true,
     );
+    expect(isCollapsibleNotificationType(NotificationType.ARTICLE_LIKED)).toBe(
+      true,
+    );
+    expect(
+      isCollapsibleNotificationType(NotificationType.ARTICLE_COMMENTED),
+    ).toBe(true);
     expect(isCollapsibleNotificationType(NotificationType.NEW_FOLLOWER)).toBe(
       true,
     );

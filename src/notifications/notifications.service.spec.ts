@@ -102,10 +102,16 @@ describe('NotificationsService', () => {
       service.isTypeEnabled('user-1', NotificationType.POST_LIKED),
     ).resolves.toBe(false);
     await expect(
+      service.isTypeEnabled('user-1', NotificationType.ARTICLE_LIKED),
+    ).resolves.toBe(false);
+    await expect(
       service.isTypeEnabled('user-1', NotificationType.USER_MENTIONED),
     ).resolves.toBe(true);
     await expect(
       service.isTypeEnabled('user-1', NotificationType.POST_COMMENTED),
+    ).resolves.toBe(true);
+    await expect(
+      service.isTypeEnabled('user-1', NotificationType.ARTICLE_COMMENTED),
     ).resolves.toBe(true);
     await expect(
       service.isTypeEnabled('user-1', NotificationType.COMMENT_REPLIED),

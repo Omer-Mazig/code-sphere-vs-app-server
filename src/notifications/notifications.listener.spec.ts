@@ -34,6 +34,8 @@ function createListener() {
   return {
     listener,
     postsRepository,
+    commentsRepository,
+    articlesRepository,
     usersRepository,
     queryBuilder,
     notificationsService,
@@ -233,5 +235,155 @@ describe('NotificationsListener', () => {
     });
 
     expect(notificationsService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('creates an ARTICLE_LIKED notification for an article author', async () => {
+    const {
+      listener,
+      articlesRepository,
+      usersRepository,
+      notificationsService,
+    } = createListener();
+    articlesRepository.findOne.mockResolvedValue({
+      id: 'article-1',
+      authorId: 'author-1',
+      title: 'Deep dive',
+      slug: 'deep-dive',
+      isPublished: true,
+    });
+    usersRepository.findOne.mockResolvedValue({
+      id: 'liker-1',
+      username: 'grace',
+      displayName: 'Grace',
+      avatarUrl: null,
+    });
+
+    await listener.handleArticleLiked({
+      articleId: 'article-1',
+      likerId: 'liker-1',
+    });
+
+    expect(notificationsService.isTypeEnabled).toHaveBeenCalledWith(
+      'author-1',
+      NotificationType.ARTICLE_LIKED,
+    );
+    expect(notificationsService.createNotification).toHaveBeenCalledWith(
+      'author-1',
+      NotificationType.ARTICLE_LIKED,
+      NotificationTargetType.ARTICLE,
+      expect.objectContaining({
+        type: NotificationType.ARTICLE_LIKED,
+        targetType: NotificationTargetType.ARTICLE,
+        articleSlug: 'deep-dive',
+        articleExcerpt: 'Deep dive',
+      }),
+      'article-1',
+    );
+  });
+
+  it('does not notify for likes on unpublished articles', async () => {
+    const {
+      listener,
+      articlesRepository,
+      usersRepository,
+      notificationsService,
+    } = createListener();
+    articlesRepository.findOne.mockResolvedValue({
+      id: 'article-1',
+      authorId: 'author-1',
+      title: 'Draft',
+      slug: 'draft',
+      isPublished: false,
+    });
+    usersRepository.findOne.mockResolvedValue({
+      id: 'liker-1',
+      username: 'grace',
+      displayName: 'Grace',
+      avatarUrl: null,
+    });
+
+    await listener.handleArticleLiked({
+      articleId: 'article-1',
+      likerId: 'liker-1',
+    });
+
+    expect(notificationsService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('does not notify when the liker is the article author', async () => {
+    const {
+      listener,
+      articlesRepository,
+      usersRepository,
+      notificationsService,
+    } = createListener();
+    articlesRepository.findOne.mockResolvedValue({
+      id: 'article-1',
+      authorId: 'author-1',
+      title: 'Deep dive',
+      slug: 'deep-dive',
+      isPublished: true,
+    });
+    usersRepository.findOne.mockResolvedValue({
+      id: 'author-1',
+      username: 'ada',
+      displayName: 'Ada',
+      avatarUrl: null,
+    });
+
+    await listener.handleArticleLiked({
+      articleId: 'article-1',
+      likerId: 'author-1',
+    });
+
+    expect(notificationsService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('creates an ARTICLE_COMMENTED notification for an article author', async () => {
+    const {
+      listener,
+      commentsRepository,
+      articlesRepository,
+      usersRepository,
+      notificationsService,
+    } = createListener();
+    commentsRepository.findOne.mockResolvedValue({
+      id: 'comment-1',
+      content: 'great writeup',
+    });
+    articlesRepository.findOne.mockResolvedValue({
+      id: 'article-1',
+      authorId: 'author-1',
+      title: 'Deep dive',
+      slug: 'deep-dive',
+      isPublished: true,
+    });
+    usersRepository.findOne.mockResolvedValue({
+      id: 'commenter-1',
+      username: 'grace',
+      displayName: 'Grace',
+      avatarUrl: null,
+    });
+
+    await listener.handleArticleCommented({
+      articleId: 'article-1',
+      commentId: 'comment-1',
+      commenterId: 'commenter-1',
+    });
+
+    expect(notificationsService.createNotification).toHaveBeenCalledWith(
+      'author-1',
+      NotificationType.ARTICLE_COMMENTED,
+      NotificationTargetType.ARTICLE,
+      expect.objectContaining({
+        type: NotificationType.ARTICLE_COMMENTED,
+        targetType: NotificationTargetType.ARTICLE,
+        articleSlug: 'deep-dive',
+        articleExcerpt: 'Deep dive',
+        commentId: 'comment-1',
+        commentExcerpt: 'great writeup',
+      }),
+      'article-1',
+    );
   });
 });

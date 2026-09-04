@@ -159,4 +159,119 @@ describe('Mention notifications HTTP (e2e)', () => {
       ['USER_MENTIONED'],
     );
   });
+
+  it('notifies the article author on like and comment, not on self-like', async () => {
+    const author = await registerVerifiedUser(app, 'a4au');
+    const other = await registerVerifiedUser(app, 'a4ot');
+    const authorHeader = bearer(author.session.accessToken);
+    const otherHeader = bearer(other.session.accessToken);
+
+    const article = await http(app)
+      .post(`${PREFIX}/articles`)
+      .set(authorHeader)
+      .send({
+        title: 'Observable article',
+        content: 'body',
+        isPublished: true,
+      })
+      .expect(201);
+    const articleId = article.body.payload.id as string;
+    const articleSlug = article.body.payload.slug as string;
+
+    await http(app)
+      .post(`${PREFIX}/interactions/likes`)
+      .set(authorHeader)
+      .send({ targetId: articleId, targetType: 'ARTICLE' })
+      .expect(201);
+
+    const afterSelfLike = await http(app)
+      .get(`${PREFIX}/notifications`)
+      .set(authorHeader)
+      .expect(200);
+    expect(afterSelfLike.body.payload.items).toHaveLength(0);
+
+    await http(app)
+      .post(`${PREFIX}/interactions/likes`)
+      .set(otherHeader)
+      .send({ targetId: articleId, targetType: 'ARTICLE' })
+      .expect(201);
+
+    const afterLike = await http(app)
+      .get(`${PREFIX}/notifications`)
+      .set(authorHeader)
+      .expect(200);
+    expect(afterLike.body.payload.items).toHaveLength(1);
+    expect(afterLike.body.payload.items[0]).toEqual(
+      expect.objectContaining({
+        type: 'ARTICLE_LIKED',
+        targetType: 'ARTICLE',
+        payload: expect.objectContaining({
+          articleSlug,
+          articleExcerpt: 'Observable article',
+        }),
+      }),
+    );
+
+    await http(app)
+      .post(`${PREFIX}/interactions/comments`)
+      .set(otherHeader)
+      .send({
+        targetId: articleId,
+        targetType: 'ARTICLE',
+        content: 'nice piece',
+      })
+      .expect(201);
+
+    const afterComment = await http(app)
+      .get(`${PREFIX}/notifications`)
+      .set(authorHeader)
+      .expect(200);
+    expect(afterComment.body.payload.items).toHaveLength(2);
+    expect(afterComment.body.payload.items[0]).toEqual(
+      expect.objectContaining({
+        type: 'ARTICLE_COMMENTED',
+        targetType: 'ARTICLE',
+        payload: expect.objectContaining({
+          articleSlug,
+          commentExcerpt: 'nice piece',
+        }),
+      }),
+    );
+  });
+
+  it('sends only a mention notification when the article author is tagged in a comment', async () => {
+    const author = await registerVerifiedUser(app, 'a4ow');
+    const commenter = await registerVerifiedUser(app, 'a4cm');
+    const authorHeader = bearer(author.session.accessToken);
+    const commenterHeader = bearer(commenter.session.accessToken);
+
+    const article = await http(app)
+      .post(`${PREFIX}/articles`)
+      .set(authorHeader)
+      .send({
+        title: 'Tagged author',
+        content: 'body',
+        isPublished: true,
+      })
+      .expect(201);
+
+    await http(app)
+      .post(`${PREFIX}/interactions/comments`)
+      .set(commenterHeader)
+      .send({
+        targetId: article.body.payload.id,
+        targetType: 'ARTICLE',
+        content: `@${author.user.username} see this`,
+      })
+      .expect(201);
+
+    const notifications = await http(app)
+      .get(`${PREFIX}/notifications`)
+      .set(authorHeader)
+      .expect(200);
+
+    expect(
+      notifications.body.payload.items.map((item: { type: string }) => item.type),
+    ).toEqual(['USER_MENTIONED']);
+  });
 });

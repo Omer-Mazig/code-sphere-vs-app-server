@@ -13,6 +13,8 @@ import { User } from '../../users/entities/user.entity';
 export enum NotificationType {
   POST_LIKED = 'POST_LIKED',
   POST_COMMENTED = 'POST_COMMENTED',
+  ARTICLE_LIKED = 'ARTICLE_LIKED',
+  ARTICLE_COMMENTED = 'ARTICLE_COMMENTED',
   COMMENT_REPLIED = 'COMMENT_REPLIED',
   NEW_FOLLOWER = 'NEW_FOLLOWER',
   USER_MENTIONED = 'USER_MENTIONED',
@@ -29,7 +31,7 @@ export enum NotificationTargetType {
 @Index(['userId', 'targetType', 'isRead', 'createdAt'])
 @Index('UQ_notifications_unread_collapse', ['userId', 'type', 'targetType', 'targetId'], {
   unique: true,
-  where: `"isRead" = false AND "type" IN ('POST_LIKED', 'POST_COMMENTED', 'NEW_FOLLOWER') AND "targetId" IS NOT NULL`,
+  where: `"isRead" = false AND "type" IN ('POST_LIKED', 'POST_COMMENTED', 'ARTICLE_LIKED', 'ARTICLE_COMMENTED', 'NEW_FOLLOWER') AND "targetId" IS NOT NULL`,
 })
 export class Notification {
   @PrimaryGeneratedColumn('uuid')

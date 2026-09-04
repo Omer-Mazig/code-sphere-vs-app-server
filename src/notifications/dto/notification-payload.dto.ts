@@ -82,6 +82,64 @@ export class PostCommentedNotificationPayloadDto extends CollapsedActorsDto {
   createdAt!: string;
 }
 
+export class ArticleLikedNotificationPayloadDto extends CollapsedActorsDto {
+  @ApiProperty({ enum: [NotificationType.ARTICLE_LIKED] })
+  type!: NotificationType.ARTICLE_LIKED;
+
+  @ApiProperty()
+  actorId!: string;
+
+  @ApiProperty()
+  actorName!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  actorAvatarUrl!: string | null;
+
+  @ApiProperty({ enum: [NotificationTargetType.ARTICLE] })
+  targetType!: NotificationTargetType.ARTICLE;
+
+  @ApiProperty()
+  articleSlug!: string;
+
+  @ApiProperty()
+  articleExcerpt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
+export class ArticleCommentedNotificationPayloadDto extends CollapsedActorsDto {
+  @ApiProperty({ enum: [NotificationType.ARTICLE_COMMENTED] })
+  type!: NotificationType.ARTICLE_COMMENTED;
+
+  @ApiProperty()
+  actorId!: string;
+
+  @ApiProperty()
+  actorName!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  actorAvatarUrl!: string | null;
+
+  @ApiProperty({ enum: [NotificationTargetType.ARTICLE] })
+  targetType!: NotificationTargetType.ARTICLE;
+
+  @ApiProperty()
+  articleSlug!: string;
+
+  @ApiProperty()
+  articleExcerpt!: string;
+
+  @ApiProperty()
+  commentId!: string;
+
+  @ApiProperty()
+  commentExcerpt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
 export class CommentRepliedNotificationPayloadDto {
   @ApiProperty({ enum: [NotificationType.COMMENT_REPLIED] })
   type!: NotificationType.COMMENT_REPLIED;
@@ -176,6 +234,8 @@ export class UserMentionedNotificationPayloadDto {
 export type NotificationPayload =
   | PostLikedNotificationPayloadDto
   | PostCommentedNotificationPayloadDto
+  | ArticleLikedNotificationPayloadDto
+  | ArticleCommentedNotificationPayloadDto
   | CommentRepliedNotificationPayloadDto
   | NewFollowerNotificationPayloadDto
   | UserMentionedNotificationPayloadDto;

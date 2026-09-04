@@ -6,6 +6,8 @@ export const MAX_COLLAPSE_ACTOR_PREVIEWS = 3;
 export const COLLAPSIBLE_NOTIFICATION_TYPES = [
   NotificationType.POST_LIKED,
   NotificationType.POST_COMMENTED,
+  NotificationType.ARTICLE_LIKED,
+  NotificationType.ARTICLE_COMMENTED,
   NotificationType.NEW_FOLLOWER,
 ] as const;
 
