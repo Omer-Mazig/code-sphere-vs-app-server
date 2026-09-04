@@ -2,7 +2,7 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BusinessException, ErrorCode } from '../common/errors';
 import { MediaObjectResponseDto } from './dto/media-object-response.dto';
 import { MediaObject } from './entities/media-object.entity';
@@ -52,6 +52,38 @@ export class MediaService {
     return this.formatMedia(saved);
   }
 
+  publicUrl(id: string): string {
+    const apiPrefix = this.configService.get<string>('app.apiPrefix', 'api');
+    return `/${apiPrefix}/media/${id}`;
+  }
+
+  async requireOwned(ids: string[], uploaderId: string): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const unique = [...new Set(ids)];
+    const rows = await this.mediaRepository.find({
+      where: { id: In(unique) },
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    for (const id of unique) {
+      const row = byId.get(id);
+      if (!row) {
+        throw this.notFound(id);
+      }
+      if (row.uploaderId !== uploaderId) {
+        throw new BusinessException(
+          ErrorCode.AUTHORIZATION_ERROR,
+          `User "${uploaderId}" cannot attach media "${id}"`,
+          'You can only attach your own uploads',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
+  }
+
   async getObject(
     id: string,
   ): Promise<{ body: Buffer; mimeType: string; byteSize: number }> {
@@ -92,10 +124,9 @@ export class MediaService {
   }
 
   private formatMedia(row: MediaObject): MediaObjectResponseDto {
-    const apiPrefix = this.configService.get<string>('app.apiPrefix', 'api');
     return {
       id: row.id,
-      url: `/${apiPrefix}/media/${row.id}`,
+      url: this.publicUrl(row.id),
       mimeType: row.mimeType,
       byteSize: row.byteSize,
     };

@@ -1,8 +1,9 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
+import { PostImage } from './entities/post-image.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { Like, TargetType } from '../interactions/entities/like.entity';
 import { Share } from '../interactions/entities/share.entity';
@@ -16,16 +17,22 @@ import { NotificationDomainEventName } from '../notifications/events/notificatio
 import { NotificationTargetType } from '../notifications/entities/notification.entity';
 import { FollowsService } from '../users/follows.service';
 import { TopicsService } from '../topics/topics.service';
+import { MediaService } from '../media/media.service';
 import { PostTopic } from '../topics/entities/post-topic.entity';
+import { MAX_POST_IMAGES, PostImageLayout } from './posts.constants';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     @InjectRepository(Post)
     private readonly postsRepository: Repository<Post>,
+    @InjectRepository(PostImage)
+    private readonly postImagesRepository: Repository<PostImage>,
     @InjectRepository(Like)
     private readonly likesRepository: Repository<Like>,
     @InjectRepository(Comment)
@@ -34,18 +41,20 @@ export class PostsService {
     private readonly sharesRepository: Repository<Share>,
     private readonly followsService: FollowsService,
     private readonly topicsService: TopicsService,
+    private readonly mediaService: MediaService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
     const content = dto.content?.trim() ?? '';
     const sharedPostId = dto.sharedPostId;
+    const imageMediaIds = dto.imageMediaIds ?? [];
 
-    if (!content && !sharedPostId) {
+    if (!content && !sharedPostId && imageMediaIds.length === 0) {
       throw new BusinessException(
         ErrorCode.VALIDATION_ERROR,
-        'Post requires content or a sharedPostId',
-        'Write something before posting or reshare a post',
+        'Post requires content, images, or a sharedPostId',
+        'Write something, attach an image, or reshare a post',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -60,9 +69,14 @@ export class PostsService {
       authorId,
       content,
       sharedPostId: resolvedSharedPostId,
+      imageLayout: dto.imageLayout ?? PostImageLayout.GALLERY,
     });
 
     await this.postsRepository.save(post);
+
+    if (imageMediaIds.length > 0) {
+      await this.replacePostImages(post.id, authorId, imageMediaIds);
+    }
 
     if (dto.topicIds !== undefined) {
       const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
@@ -102,8 +116,33 @@ export class PostsService {
     }
 
     const previousContent = post.content;
+    const nextImageIds =
+      dto.imageMediaIds ??
+      (
+        await this.postImagesRepository.find({
+          where: { postId: post.id },
+          select: ['mediaId'],
+        })
+      ).map((row) => row.mediaId);
+
+    if (!dto.content.trim() && !post.sharedPostId && nextImageIds.length === 0) {
+      throw new BusinessException(
+        ErrorCode.VALIDATION_ERROR,
+        `Post "${postId}" cannot be empty`,
+        'Write something or attach an image',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     post.content = dto.content;
+    if (dto.imageLayout !== undefined) {
+      post.imageLayout = dto.imageLayout;
+    }
     await this.postsRepository.save(post);
+
+    if (dto.imageMediaIds !== undefined) {
+      await this.replacePostImages(post.id, userId, dto.imageMediaIds);
+    }
 
     if (dto.topicIds !== undefined) {
       const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
@@ -143,7 +182,16 @@ export class PostsService {
       );
     }
 
+    const imageRows = await this.postImagesRepository.find({
+      where: { postId },
+      select: ['mediaId'],
+    });
+
     await this.postsRepository.remove(post);
+
+    for (const row of imageRows) {
+      await this.deleteOwnedMediaBestEffort(row.mediaId, userId);
+    }
 
     return { message: 'Post deleted' };
   }
@@ -165,7 +213,8 @@ export class PostsService {
 
     const formatted = this.formatPost(post);
     const [withTopics] = await this.enrichWithTopics([formatted]);
-    const [withLikes] = await this.enrichWithLikes([withTopics], currentUserId);
+    const [withImages] = await this.enrichWithImages([withTopics]);
+    const [withLikes] = await this.enrichWithLikes([withImages], currentUserId);
     const [withShares] = await this.enrichWithShares(
       [withLikes],
       currentUserId,
@@ -214,7 +263,8 @@ export class PostsService {
 
     const items = posts.map((post) => this.formatPost(post));
     const withTopics = await this.enrichWithTopics(items);
-    const withLikes = await this.enrichWithLikes(withTopics, currentUserId);
+    const withImages = await this.enrichWithImages(withTopics);
+    const withLikes = await this.enrichWithLikes(withImages, currentUserId);
     const withShares = await this.enrichWithShares(withLikes, currentUserId);
     const withCommentPreview = await this.enrichWithCommentPreview(withShares);
     const enrichedItems = await this.enrichWithFollowing(
@@ -235,6 +285,7 @@ export class PostsService {
     return {
       id: post.id,
       content: post.content,
+      imageLayout: post.imageLayout ?? PostImageLayout.GALLERY,
       author: post.author
         ? {
             id: post.author.id,
@@ -271,6 +322,119 @@ export class PostsService {
       ...item,
       topics: map.get(item.id) ?? [],
     }));
+  }
+
+  private async enrichWithImages<
+    T extends {
+      id: string;
+      sharedPost?: { id: string } | null;
+    },
+  >(items: T[]) {
+    const ids = [
+      ...new Set(
+        items.flatMap((item) =>
+          [item.id, item.sharedPost?.id].filter((id): id is string =>
+            Boolean(id),
+          ),
+        ),
+      ),
+    ];
+    const map = await this.imagesByPostIds(ids);
+
+    return items.map((item) => ({
+      ...item,
+      images: map.get(item.id) ?? [],
+      ...(item.sharedPost
+        ? {
+            sharedPost: {
+              ...item.sharedPost,
+              images: map.get(item.sharedPost.id) ?? [],
+            },
+          }
+        : {}),
+    }));
+  }
+
+  private async imagesByPostIds(postIds: string[]) {
+    const map = new Map<string, { id: string; url: string }[]>();
+    if (postIds.length === 0) {
+      return map;
+    }
+
+    const rows = await this.postImagesRepository.find({
+      where: { postId: In(postIds) },
+      order: { position: 'ASC' },
+    });
+
+    for (const row of rows) {
+      const images = map.get(row.postId) ?? [];
+      images.push({
+        id: row.mediaId,
+        url: this.mediaService.publicUrl(row.mediaId),
+      });
+      map.set(row.postId, images);
+    }
+
+    return map;
+  }
+
+  private async replacePostImages(
+    postId: string,
+    authorId: string,
+    mediaIds: string[],
+  ) {
+    if (mediaIds.length > MAX_POST_IMAGES) {
+      throw new BusinessException(
+        ErrorCode.POST_IMAGES_LIMIT,
+        `Post "${postId}" cannot attach ${mediaIds.length} images`,
+        `You can attach up to ${MAX_POST_IMAGES} images`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.mediaService.requireOwned(mediaIds, authorId);
+
+    const previous = await this.postImagesRepository.find({
+      where: { postId },
+    });
+
+    await this.postImagesRepository.delete({ postId });
+
+    if (mediaIds.length > 0) {
+      await this.postImagesRepository.save(
+        mediaIds.map((mediaId, position) =>
+          this.postImagesRepository.create({ postId, mediaId, position }),
+        ),
+      );
+    }
+
+    const nextIds = new Set(mediaIds);
+    for (const row of previous) {
+      if (!nextIds.has(row.mediaId)) {
+        await this.deleteOwnedMediaBestEffort(row.mediaId, authorId);
+      }
+    }
+  }
+
+  private async deleteOwnedMediaBestEffort(mediaId: string, userId: string) {
+    try {
+      await this.mediaService.delete(mediaId, userId);
+    } catch (error) {
+      const errorCode =
+        error instanceof BusinessException ? error.errorCode : undefined;
+      if (
+        errorCode === ErrorCode.MEDIA_NOT_FOUND ||
+        errorCode === ErrorCode.AUTHORIZATION_ERROR
+      ) {
+        return;
+      }
+      this.logger.warn({
+        msg: 'Failed to delete post image media',
+        mediaId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async resolveRootPost(postId: string): Promise<Post> {

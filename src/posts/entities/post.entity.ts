@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { PostImageLayout } from '../posts.constants';
 
 @Entity('posts')
 export class Post {
@@ -22,6 +23,13 @@ export class Post {
 
   @Column({ type: 'uuid', nullable: true })
   sharedPostId: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: PostImageLayout,
+    default: PostImageLayout.GALLERY,
+  })
+  imageLayout: PostImageLayout;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'authorId' })

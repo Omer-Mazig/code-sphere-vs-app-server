@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MessageResponseDto } from '../../common/swagger';
 import { TopicPreviewResponseDto } from '../../topics/dto';
+import { PostImageLayout } from '../posts.constants';
 
 export class PostAuthorResponseDto {
   @ApiProperty()
@@ -33,6 +34,14 @@ export class PostCommentPreviewResponseDto {
   author!: PostAuthorResponseDto | null;
 }
 
+export class PostImageResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ example: '/api/media/550e8400-e29b-41d4-a716-446655440000' })
+  url!: string;
+}
+
 export class SharedPostPreviewResponseDto {
   @ApiProperty()
   id!: string;
@@ -42,6 +51,9 @@ export class SharedPostPreviewResponseDto {
 
   @ApiProperty({ type: PostAuthorResponseDto, nullable: true })
   author!: PostAuthorResponseDto | null;
+
+  @ApiProperty({ type: [PostImageResponseDto] })
+  images!: PostImageResponseDto[];
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
@@ -59,6 +71,12 @@ export class PostResponseDto {
 
   @ApiProperty({ type: [TopicPreviewResponseDto] })
   topics!: TopicPreviewResponseDto[];
+
+  @ApiProperty({ type: [PostImageResponseDto] })
+  images!: PostImageResponseDto[];
+
+  @ApiProperty({ enum: PostImageLayout, enumName: 'PostImageLayout' })
+  imageLayout!: PostImageLayout;
 
   @ApiProperty()
   likesCount!: number;

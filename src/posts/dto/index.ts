@@ -4,5 +4,6 @@ export { PostQueryDto } from './post-query.dto';
 export {
   PostResponseDto,
   PostDeletedResponseDto,
+  PostImageResponseDto,
   SharedPostPreviewResponseDto,
 } from './post-response.dto';

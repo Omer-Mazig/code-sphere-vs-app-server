@@ -17,6 +17,7 @@ import { Topic } from '../topics/entities/topic.entity';
 import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity';
 import { PostTopic } from '../topics/entities/post-topic.entity';
 import { ArticleTopic } from '../topics/entities/article-topic.entity';
+import { PostImage } from '../posts/entities/post-image.entity';
 
 config({ path: join(__dirname, '../../.env') });
 
@@ -44,6 +45,7 @@ export default new DataSource({
     UserFollowedTopic,
     PostTopic,
     ArticleTopic,
+    PostImage,
   ],
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   synchronize: false,

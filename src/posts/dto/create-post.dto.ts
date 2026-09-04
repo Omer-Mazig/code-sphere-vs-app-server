@@ -1,6 +1,16 @@
-import { IsString, MaxLength, IsOptional, IsUUID, IsArray, ArrayMaxSize } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
+import { MAX_POST_IMAGES, PostImageLayout } from '../posts.constants';
 
 export class CreatePostDto {
   @ApiPropertyOptional({ example: 'Just shipped a new feature!' })
@@ -15,6 +25,26 @@ export class CreatePostDto {
   @IsOptional()
   @IsUUID()
   sharedPostId?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: `Ordered MEDIA-001 object ids (max ${MAX_POST_IMAGES})`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_POST_IMAGES)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  imageMediaIds?: string[];
+
+  @ApiPropertyOptional({
+    enum: PostImageLayout,
+    enumName: 'PostImageLayout',
+    description: 'How attached images are shown. Defaults to GALLERY.',
+  })
+  @IsOptional()
+  @IsEnum(PostImageLayout)
+  imageLayout?: PostImageLayout;
 
   @ApiPropertyOptional({
     type: [String],
