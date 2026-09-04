@@ -5,11 +5,12 @@ import {
   IsArray,
   IsOptional,
   IsBoolean,
-  IsUrl,
   IsUUID,
   ArrayMaxSize,
+  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PROFILE_IMAGE_REF_PATTERN } from '../../media/media-object-url';
 import { MAX_TOPICS_PER_ITEM } from '../../topics/topics.constants';
 
 export const ARTICLE_CONTENT_MAX_LENGTH = 100_000;
@@ -30,9 +31,17 @@ export class CreateArticleDto {
   @MaxLength(ARTICLE_CONTENT_MAX_LENGTH)
   content: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/cover.jpg' })
+  @ApiPropertyOptional({
+    example: '/api/media/550e8400-e29b-41d4-a716-446655440000',
+    description:
+      'Uploaded media path from POST /media, or an https URL (seed/legacy).',
+  })
   @IsOptional()
-  @IsUrl()
+  @IsString()
+  @MaxLength(2048)
+  @Matches(PROFILE_IMAGE_REF_PATTERN, {
+    message: 'Must be an uploaded image or a valid URL',
+  })
   coverImageUrl?: string;
 
   @ApiPropertyOptional({ default: false })

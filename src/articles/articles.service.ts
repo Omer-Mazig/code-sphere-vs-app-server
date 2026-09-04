@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
@@ -17,9 +17,13 @@ import { NotificationTargetType } from '../notifications/entities/notification.e
 import { FollowsService } from '../users/follows.service';
 import { TopicsService } from '../topics/topics.service';
 import { ArticleTopic } from '../topics/entities/article-topic.entity';
+import { MediaService } from '../media/media.service';
+import { parseMediaObjectIdFromUrl } from '../media/media-object-url';
 
 @Injectable()
 export class ArticlesService {
+  private readonly logger = new Logger(ArticlesService.name);
+
   constructor(
     @InjectRepository(Article)
     private readonly articlesRepository: Repository<Article>,
@@ -29,6 +33,7 @@ export class ArticlesService {
     private readonly commentsRepository: Repository<Comment>,
     private readonly followsService: FollowsService,
     private readonly topicsService: TopicsService,
+    private readonly mediaService: MediaService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -126,9 +131,18 @@ export class ArticlesService {
       article.slug = newSlug;
     }
 
+    const previousCover = article.coverImageUrl;
     const { topicIds: _topicIds, ...entityUpdates } = definedUpdates;
     Object.assign(article, entityUpdates);
     await this.articlesRepository.save(article);
+
+    if (dto.coverImageUrl !== undefined) {
+      await this.deleteReplacedCoverBestEffort(
+        previousCover,
+        article.coverImageUrl,
+        userId,
+      );
+    }
 
     if (dto.topicIds !== undefined) {
       const topicIds = await this.topicsService.resolveTopicIds(dto.topicIds);
@@ -169,7 +183,9 @@ export class ArticlesService {
       );
     }
 
+    const coverUrl = article.coverImageUrl;
     await this.articlesRepository.remove(article);
+    await this.deleteReplacedCoverBestEffort(coverUrl, null, userId);
 
     return { message: 'Article deleted' };
   }
@@ -529,6 +545,37 @@ export class ArticlesService {
       '-' +
       Date.now().toString(36)
     );
+  }
+
+  private async deleteReplacedCoverBestEffort(
+    previousUrl: string | null | undefined,
+    nextUrl: string | null | undefined,
+    userId: string,
+  ) {
+    const previousId = parseMediaObjectIdFromUrl(previousUrl);
+    const nextId = parseMediaObjectIdFromUrl(nextUrl);
+    if (!previousId || previousId === nextId) {
+      return;
+    }
+
+    try {
+      await this.mediaService.delete(previousId, userId);
+    } catch (error) {
+      const errorCode =
+        error instanceof BusinessException ? error.errorCode : undefined;
+      if (
+        errorCode === ErrorCode.MEDIA_NOT_FOUND ||
+        errorCode === ErrorCode.AUTHORIZATION_ERROR
+      ) {
+        return;
+      }
+      this.logger.warn({
+        msg: 'Failed to delete replaced article cover media',
+        previousId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async emitMentionNotifications(params: {

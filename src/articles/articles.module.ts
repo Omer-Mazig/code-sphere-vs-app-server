@@ -7,12 +7,14 @@ import { Like } from '../interactions/entities/like.entity';
 import { Comment } from '../interactions/entities/comment.entity';
 import { UsersModule } from '../users/users.module';
 import { TopicsModule } from '../topics/topics.module';
+import { MediaModule } from '../media/media.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Article, Like, Comment]),
     UsersModule,
     TopicsModule,
+    MediaModule,
   ],
   controllers: [ArticlesController],
   providers: [ArticlesService],
