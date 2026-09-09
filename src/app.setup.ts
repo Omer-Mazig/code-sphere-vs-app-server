@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -20,6 +21,7 @@ export function configureHttpApp(
   const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
 
   app.setGlobalPrefix(apiPrefix);
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.use(cookieParser());
   app.use(

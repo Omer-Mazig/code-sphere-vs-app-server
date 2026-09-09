@@ -49,6 +49,12 @@ export class UserProfileResponseDto {
   @ApiProperty()
   isFollowing!: boolean;
 
+  @ApiProperty({
+    description:
+      'Whether the authenticated viewer has blocked this user. Always false on GET /users/me.',
+  })
+  isBlocked!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 }
@@ -94,6 +100,8 @@ export class SuggestedUserResponseDto {
 }
 
 export class FollowActionResponseDto extends MessageResponseDto {}
+
+export class BlockActionResponseDto extends MessageResponseDto {}
 
 export class DeactivateAccountResponseDto extends MessageResponseDto {}
 

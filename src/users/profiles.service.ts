@@ -6,6 +6,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileFieldUpdates, toProfileUpdates } from './profile-updates';
 import { UsersService } from './users.service';
 import { FollowsService } from './follows.service';
+import { BlocksService } from './blocks.service';
 import { AuthService } from '../auth/auth.service';
 import { Post } from '../posts/entities/post.entity';
 import { Article } from '../articles/entities/article.entity';
@@ -20,6 +21,7 @@ export class ProfilesService {
   constructor(
     private readonly usersService: UsersService,
     private readonly followsService: FollowsService,
+    private readonly blocksService: BlocksService,
     private readonly authService: AuthService,
     private readonly mediaService: MediaService,
     @InjectRepository(Post)
@@ -43,6 +45,7 @@ export class ProfilesService {
       followingCount,
       ...contentCounts,
       isFollowing: false,
+      isBlocked: false,
     };
   }
 
@@ -59,11 +62,14 @@ export class ProfilesService {
   async getProfile(targetUserId: string, currentUserId?: string) {
     const user = await this.usersService.findUserOrFail(targetUserId);
 
-    const [{ followersCount, followingCount }, isFollowing, contentCounts] =
+    const [{ followersCount, followingCount }, isFollowing, isBlocked, contentCounts] =
       await Promise.all([
         this.followsService.getCounts(targetUserId),
         currentUserId
           ? this.followsService.isFollowing(currentUserId, targetUserId)
+          : Promise.resolve(false),
+        currentUserId
+          ? this.blocksService.isBlocked(currentUserId, targetUserId)
           : Promise.resolve(false),
         this.getContentCounts(targetUserId, { includeUnpublished: false }),
       ]);
@@ -74,6 +80,7 @@ export class ProfilesService {
       followingCount,
       ...contentCounts,
       isFollowing,
+      isBlocked,
     };
   }
 

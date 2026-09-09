@@ -18,6 +18,10 @@ import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity
 import { PostTopic } from '../topics/entities/post-topic.entity';
 import { ArticleTopic } from '../topics/entities/article-topic.entity';
 import { PostImage } from '../posts/entities/post-image.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
+import { ConversationParticipant } from '../chat/entities/conversation-participant.entity';
+import { ChatMessage } from '../chat/entities/chat-message.entity';
+import { UserBlock } from '../users/entities/user-block.entity';
 
 config({ path: join(__dirname, '../../.env') });
 
@@ -46,6 +50,10 @@ export default new DataSource({
     PostTopic,
     ArticleTopic,
     PostImage,
+    Conversation,
+    ConversationParticipant,
+    ChatMessage,
+    UserBlock,
   ],
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   synchronize: false,

@@ -12,6 +12,7 @@ import {
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProfilesService } from './profiles.service';
 import { FollowsService } from './follows.service';
+import { BlocksService } from './blocks.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import {
   NotificationPreferencesResponseDto,
@@ -22,6 +23,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import {
   DeactivateAccountResponseDto,
   FollowActionResponseDto,
+  BlockActionResponseDto,
   FollowUserResponseDto,
   SuggestedUserResponseDto,
   UserPreviewResponseDto,
@@ -40,6 +42,7 @@ export class UsersController {
   constructor(
     private readonly profilesService: ProfilesService,
     private readonly followsService: FollowsService,
+    private readonly blocksService: BlocksService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
@@ -141,6 +144,29 @@ export class UsersController {
     @Param('id') targetUserId: string,
   ) {
     return this.followsService.unfollowUser(currentUserId, targetUserId);
+  }
+
+  @Post(':id/block')
+  @HttpCode(200)
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(BlockActionResponseDto)
+  @ApiStandardErrorResponses()
+  blockUser(
+    @CurrentUser() currentUserId: string,
+    @Param('id') targetUserId: string,
+  ) {
+    return this.blocksService.blockUser(currentUserId, targetUserId);
+  }
+
+  @Delete(':id/block')
+  @ApiParam({ name: 'id', type: String })
+  @ApiEnvelopeOkResponse(BlockActionResponseDto)
+  @ApiStandardErrorResponses()
+  unblockUser(
+    @CurrentUser() currentUserId: string,
+    @Param('id') targetUserId: string,
+  ) {
+    return this.blocksService.unblockUser(currentUserId, targetUserId);
   }
 
   // ── Followers / Following ──────────────────────────────────────────
