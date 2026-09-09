@@ -125,7 +125,11 @@ export class PostsService {
         })
       ).map((row) => row.mediaId);
 
-    if (!dto.content.trim() && !post.sharedPostId && nextImageIds.length === 0) {
+    if (
+      !dto.content.trim() &&
+      !post.sharedPostId &&
+      nextImageIds.length === 0
+    ) {
       throw new BusinessException(
         ErrorCode.VALIDATION_ERROR,
         `Post "${postId}" cannot be empty`,
