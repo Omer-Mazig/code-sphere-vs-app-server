@@ -14,7 +14,7 @@ import { Topic } from '../topics/entities/topic.entity';
 import { UserFollowedTopic } from '../topics/entities/user-followed-topic.entity';
 import { PostTopic } from '../topics/entities/post-topic.entity';
 import { ArticleTopic } from '../topics/entities/article-topic.entity';
-import { CURATED_TOPICS } from '../topics/topics.constants';
+import { SEED_PASSWORD, buildSeedVolume } from './seed-volume';
 // ----- Seed types -----
 
 type SeedUser = {
@@ -132,545 +132,53 @@ export class SeedService {
   }
 
   /**
-   * Full seed orchestration — order matters because later steps reference earlier IDs.
+   * Full seed. The CLI clears first. Insert originals before reposts, and
+   * top-level comments before replies, so foreign keys resolve.
    */
   async run() {
-    // 1. Users
-    const userMap = await this.seedUsers(this.users);
-    const userIds = Object.values(userMap);
+    const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
+    const volume = buildSeedVolume({
+      users: this.users,
+      posts: this.posts,
+      articles: this.articles,
+      passwordHash,
+    });
 
-    const topicMap = await this.seedTopics();
-    const topicFollowsCreated = await this.seedTopicFollows(userMap, topicMap);
-
-    // 2. Follows (build a realistic social graph)
-    const followsCreated = await this.seedFollows(userMap);
-
-    // 3. Posts
-    const postEntities = await this.seedPosts(this.posts, userMap);
-
-    // 4. Articles
-    const articleEntities = await this.seedArticles(this.articles, userMap);
-
-    await this.seedContentTopics(postEntities, articleEntities, topicMap);
-
-    // 5. Likes on posts & articles
-    const likesCreated = await this.seedLikes(
-      userIds,
-      postEntities,
-      articleEntities,
-    );
-
-    // 6. Comments on posts & articles
-    const commentsCreated = await this.seedComments(
-      userIds,
-      postEntities,
-      articleEntities,
-    );
-
-    // 7. Shares
-    const sharesCreated = await this.seedShares(
-      userIds,
-      postEntities,
-      articleEntities,
-    );
+    await this.insertChunks(this.userRepository, volume.users);
+    await this.insertChunks(this.topicRepository, volume.topics);
+    await this.insertChunks(this.userFollowedTopicRepository, volume.topicFollows);
+    await this.insertChunks(this.followRepository, volume.follows);
+    await this.insertChunks(this.postRepository, volume.posts);
+    await this.insertChunks(this.postRepository, volume.reposts);
+    await this.insertChunks(this.articleRepository, volume.articles);
+    await this.insertChunks(this.postTopicRepository, volume.postTopics);
+    await this.insertChunks(this.articleTopicRepository, volume.articleTopics);
+    await this.insertChunks(this.likeRepository, volume.likes);
+    await this.insertChunks(this.commentRepository, volume.comments);
+    await this.insertChunks(this.commentRepository, volume.replies);
+    await this.insertChunks(this.shareRepository, volume.shares);
 
     return {
-      users: Object.keys(userMap).length,
-      topics: Object.keys(topicMap).length,
-      topicFollows: topicFollowsCreated,
-      follows: followsCreated,
-      posts: postEntities.length,
-      articles: articleEntities.length,
-      likes: likesCreated,
-      comments: commentsCreated,
-      shares: sharesCreated,
+      users: volume.users.length,
+      topics: volume.topics.length,
+      topicFollows: volume.topicFollows.length,
+      follows: volume.follows.length,
+      posts: volume.posts.length + volume.reposts.length,
+      articles: volume.articles.length,
+      likes: volume.likes.length,
+      comments: volume.comments.length + volume.replies.length,
+      shares: volume.shares.length,
     };
   }
 
-  // =================== Users ===================
-
-  async seedUsers(users: SeedUser[]) {
-    const map: Record<string, string> = {}; // username → id
-
-    for (const u of users) {
-      let existing = await this.userRepository.findOne({
-        where: { email: u.email },
-      });
-
-      if (!existing) {
-        existing = await this.userRepository.save(
-          this.userRepository.create({
-            email: u.email,
-            passwordHash: await bcrypt.hash(u.password, 10),
-            username: u.username,
-            displayName: u.displayName,
-            bio: u.bio,
-            location: u.location,
-            website: u.website,
-            github: u.github,
-            avatarUrl: u.avatarUrl,
-            isActive: true,
-            emailVerified: true,
-          }),
-        );
-      }
-
-      map[u.username] = existing.id;
-    }
-
-    return map;
-  }
-
-  // =================== Topics ===================
-
-  private async seedTopics() {
-    const map: Record<string, string> = {};
-
-    for (const topic of CURATED_TOPICS) {
-      let existing = await this.topicRepository.findOne({
-        where: { slug: topic.slug },
-      });
-      if (!existing) {
-        existing = await this.topicRepository.save(
-          this.topicRepository.create({
-            slug: topic.slug,
-            name: topic.name,
-            description: topic.description,
-          }),
-        );
-      }
-      map[topic.slug] = existing.id;
-    }
-
-    return map;
-  }
-
-  private async seedTopicFollows(
-    userMap: Record<string, string>,
-    topicMap: Record<string, string>,
+  private async insertChunks<T extends object>(
+    repository: Repository<T>,
+    rows: T[],
   ) {
-    const pairs: [string, string][] = [
-      ['sarah_dev', 'typescript'],
-      ['sarah_dev', 'react'],
-      ['alex_code', 'javascript'],
-      ['mike_ts', 'typescript'],
-      ['priya_devops', 'devops'],
-      ['priya_devops', 'kubernetes'],
-      ['lina_rust', 'rust'],
-      ['emma_go', 'go'],
-    ];
-
-    let created = 0;
-    for (const [username, slug] of pairs) {
-      const userId = userMap[username];
-      const topicId = topicMap[slug];
-      if (!userId || !topicId) {
-        continue;
-      }
-      const exists = await this.userFollowedTopicRepository.findOne({
-        where: { userId, topicId },
-      });
-      if (exists) {
-        continue;
-      }
-      await this.userFollowedTopicRepository.save(
-        this.userFollowedTopicRepository.create({ userId, topicId }),
-      );
-      created++;
+    const size = 500;
+    for (let index = 0; index < rows.length; index += size) {
+      await repository.insert(rows.slice(index, index + size));
     }
-    return created;
-  }
-
-  private async seedContentTopics(
-    posts: Post[],
-    articles: Article[],
-    topicMap: Record<string, string>,
-  ) {
-    const typescript = topicMap.typescript;
-    const react = topicMap.react;
-    const devops = topicMap.devops;
-    if (typescript && posts[0]) {
-      await this.postTopicRepository.save(
-        this.postTopicRepository.create({
-          postId: posts[0].id,
-          topicId: typescript,
-        }),
-      );
-    }
-    if (react && posts[1]) {
-      await this.postTopicRepository.save(
-        this.postTopicRepository.create({
-          postId: posts[1].id,
-          topicId: react,
-        }),
-      );
-    }
-    if (typescript && articles[0]) {
-      await this.articleTopicRepository.save(
-        this.articleTopicRepository.create({
-          articleId: articles[0].id,
-          topicId: typescript,
-        }),
-      );
-    }
-    if (devops && articles[1]) {
-      await this.articleTopicRepository.save(
-        this.articleTopicRepository.create({
-          articleId: articles[1].id,
-          topicId: devops,
-        }),
-      );
-    }
-  }
-
-  // =================== Follows ===================
-
-  private async seedFollows(userMap: Record<string, string>) {
-    // Define a realistic follow graph — not everyone follows everyone
-    const followPairs: [string, string][] = [
-      // sarah_dev is popular — most people follow her
-      ['alex_code', 'sarah_dev'],
-      ['mike_ts', 'sarah_dev'],
-      ['lina_rust', 'sarah_dev'],
-      ['jordan_py', 'sarah_dev'],
-      ['emma_go', 'sarah_dev'],
-      ['nina_swift', 'sarah_dev'],
-      ['tom_java', 'sarah_dev'],
-      ['priya_devops', 'sarah_dev'],
-      ['carlos_mobile', 'sarah_dev'],
-      ['maya_design', 'sarah_dev'],
-      ['david_db', 'sarah_dev'],
-      ['olivia_sec', 'sarah_dev'],
-      ['ryan_startup', 'sarah_dev'],
-
-      // alex_code is active, gets followers
-      ['sarah_dev', 'alex_code'],
-      ['mike_ts', 'alex_code'],
-      ['jordan_py', 'alex_code'],
-      ['tom_java', 'alex_code'],
-      ['david_db', 'alex_code'],
-
-      // mike_ts ↔ lina_rust (mutual)
-      ['mike_ts', 'lina_rust'],
-      ['lina_rust', 'mike_ts'],
-      ['maya_design', 'mike_ts'],
-
-      // jordan_py follows a few
-      ['jordan_py', 'emma_go'],
-      ['jordan_py', 'lina_rust'],
-      ['jordan_py', 'david_db'],
-
-      // emma_go follows a few
-      ['emma_go', 'alex_code'],
-      ['emma_go', 'jordan_py'],
-      ['emma_go', 'priya_devops'],
-
-      // New user connections
-      ['nina_swift', 'carlos_mobile'],
-      ['carlos_mobile', 'nina_swift'],
-      ['nina_swift', 'maya_design'],
-      ['tom_java', 'david_db'],
-      ['david_db', 'tom_java'],
-      ['priya_devops', 'emma_go'],
-      ['priya_devops', 'olivia_sec'],
-      ['olivia_sec', 'priya_devops'],
-      ['ryan_startup', 'alex_code'],
-      ['ryan_startup', 'mike_ts'],
-      ['maya_design', 'sarah_dev'],
-      ['carlos_mobile', 'mike_ts'],
-
-      // admin follows key people
-      ['cs_admin', 'sarah_dev'],
-      ['cs_admin', 'alex_code'],
-      ['cs_admin', 'ryan_startup'],
-    ];
-
-    let created = 0;
-    for (const [followerUsername, followingUsername] of followPairs) {
-      const followerId = userMap[followerUsername];
-      const followingId = userMap[followingUsername];
-      if (!followerId || !followingId) continue;
-
-      const exists = await this.followRepository.findOne({
-        where: { followerId, followingId },
-      });
-      if (exists) continue;
-
-      await this.followRepository.save(
-        this.followRepository.create({ followerId, followingId }),
-      );
-      created++;
-    }
-
-    return created;
-  }
-
-  // =================== Posts ===================
-
-  private async seedPosts(posts: SeedPost[], userMap: Record<string, string>) {
-    const saved: Post[] = [];
-
-    for (const p of posts) {
-      const authorId = userMap[p.authorUsername];
-      if (!authorId) continue;
-
-      const entity = await this.postRepository.save(
-        this.postRepository.create({ authorId, content: p.content }),
-      );
-      saved.push(entity);
-    }
-
-    return saved;
-  }
-
-  // =================== Articles ===================
-
-  private async seedArticles(
-    articles: SeedArticle[],
-    userMap: Record<string, string>,
-  ) {
-    const saved: Article[] = [];
-
-    for (const a of articles) {
-      const authorId = userMap[a.authorUsername];
-      if (!authorId) continue;
-
-      const slug =
-        this.slugify(a.title) +
-        '-' +
-        Date.now().toString(36) +
-        Math.random().toString(36).slice(2, 5);
-
-      const entity = await this.articleRepository.save(
-        this.articleRepository.create({
-          authorId,
-          title: a.title,
-          slug,
-          content: this.articleBlocksToMarkdown(a.content),
-          coverImageUrl: a.coverImageUrl,
-          isPublished: a.isPublished,
-        }),
-      );
-      saved.push(entity);
-    }
-
-    return saved;
-  }
-
-  // =================== Likes ===================
-
-  private async seedLikes(
-    userIds: string[],
-    posts: Post[],
-    articles: Article[],
-  ) {
-    let created = 0;
-
-    // Each user likes ~60% of posts (randomly)
-    for (const userId of userIds) {
-      for (const post of posts) {
-        if (Math.random() < 0.6) {
-          const exists = await this.likeRepository.findOne({
-            where: { userId, targetId: post.id, targetType: TargetType.POST },
-          });
-          if (!exists) {
-            await this.likeRepository.save(
-              this.likeRepository.create({
-                userId,
-                targetId: post.id,
-                targetType: TargetType.POST,
-              }),
-            );
-            created++;
-          }
-        }
-      }
-
-      // Each user likes ~40% of articles
-      for (const article of articles) {
-        if (Math.random() < 0.4) {
-          const exists = await this.likeRepository.findOne({
-            where: {
-              userId,
-              targetId: article.id,
-              targetType: TargetType.ARTICLE,
-            },
-          });
-          if (!exists) {
-            await this.likeRepository.save(
-              this.likeRepository.create({
-                userId,
-                targetId: article.id,
-                targetType: TargetType.ARTICLE,
-              }),
-            );
-            created++;
-          }
-        }
-      }
-    }
-
-    return created;
-  }
-
-  // =================== Comments ===================
-
-  private async seedComments(
-    userIds: string[],
-    posts: Post[],
-    articles: Article[],
-  ) {
-    let created = 0;
-
-    // Predefined realistic comment texts — pool to pick from
-    const postComments = [
-      'Totally agree with this!',
-      'Great insight, thanks for sharing.',
-      'I had the exact same experience last week.',
-      'This is the way. 🔥',
-      'Interesting perspective, but have you considered the trade-offs?',
-      'Bookmarking this for later.',
-      "Clean approach — I'd love to see a follow-up.",
-      'Solid advice, especially for juniors.',
-      'This changed how I think about testing.',
-      "I've been saying this for years. +1",
-    ];
-
-    const articleComments = [
-      'Amazing article! Well-written and easy to follow.',
-      'I wish I had this resource when I was starting out.',
-      'The code examples are really helpful, thank you.',
-      'Great deep dive. Looking forward to part 2!',
-      'Minor nit: the third code block has a typo, but otherwise excellent.',
-      'This is one of the best explanations I have read on this topic.',
-      'How would this change with the latest version?',
-      'Saved this. Will definitely reference it in my next project.',
-    ];
-
-    // Seed comments on posts — ~3-5 per post
-    for (const post of posts) {
-      const commentCount = 3 + Math.floor(Math.random() * 3);
-      const shuffledUsers = [...userIds].sort(() => Math.random() - 0.5);
-
-      for (let i = 0; i < commentCount && i < shuffledUsers.length; i++) {
-        const text =
-          postComments[Math.floor(Math.random() * postComments.length)];
-        await this.commentRepository.save(
-          this.commentRepository.create({
-            authorId: shuffledUsers[i],
-            targetId: post.id,
-            targetType: TargetType.POST,
-            content: text,
-          }),
-        );
-        created++;
-      }
-    }
-
-    // Seed comments on articles — ~3-6 per article
-    for (const article of articles) {
-      const commentCount = 3 + Math.floor(Math.random() * 4);
-      const shuffledUsers = [...userIds].sort(() => Math.random() - 0.5);
-
-      for (let i = 0; i < commentCount && i < shuffledUsers.length; i++) {
-        const text =
-          articleComments[Math.floor(Math.random() * articleComments.length)];
-        await this.commentRepository.save(
-          this.commentRepository.create({
-            authorId: shuffledUsers[i],
-            targetId: article.id,
-            targetType: TargetType.ARTICLE,
-            content: text,
-          }),
-        );
-        created++;
-      }
-    }
-
-    return created;
-  }
-
-  // =================== Shares ===================
-
-  private async seedShares(
-    userIds: string[],
-    posts: Post[],
-    articles: Article[],
-  ) {
-    let created = 0;
-
-    // ~25% of users share each post
-    for (const post of posts) {
-      for (const userId of userIds) {
-        if (Math.random() < 0.25) {
-          const exists = await this.shareRepository.findOne({
-            where: { userId, targetId: post.id, targetType: TargetType.POST },
-          });
-          if (!exists) {
-            await this.shareRepository.save(
-              this.shareRepository.create({
-                userId,
-                targetId: post.id,
-                targetType: TargetType.POST,
-              }),
-            );
-            created++;
-          }
-        }
-      }
-    }
-
-    // ~20% of users share each article
-    for (const article of articles) {
-      for (const userId of userIds) {
-        if (Math.random() < 0.2) {
-          const exists = await this.shareRepository.findOne({
-            where: {
-              userId,
-              targetId: article.id,
-              targetType: TargetType.ARTICLE,
-            },
-          });
-          if (!exists) {
-            await this.shareRepository.save(
-              this.shareRepository.create({
-                userId,
-                targetId: article.id,
-                targetType: TargetType.ARTICLE,
-              }),
-            );
-            created++;
-          }
-        }
-      }
-    }
-
-    return created;
-  }
-
-  // =================== Helpers ===================
-
-  private slugify(text: string): string {
-    return text
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
-  }
-
-  private articleBlocksToMarkdown(blocks: SeedArticleBlock[]): string {
-    return blocks
-      .map((block) => {
-        if (block.type === 'heading') {
-          return `## ${block.content}`;
-        }
-        if (block.type === 'code') {
-          return `\`\`\`ts\n${block.content}\n\`\`\``;
-        }
-        return block.content;
-      })
-      .join('\n\n');
   }
 
   // =================== Seed data ===================
@@ -678,7 +186,7 @@ export class SeedService {
   private readonly users: SeedUser[] = [
     {
       email: 'admin@codesphere.dev',
-      password: 'Admin1234!',
+      password: 'Password123!',
       username: 'cs_admin',
       displayName: 'CodeSphere Admin',
       bio: 'Official CodeSphere admin account.',

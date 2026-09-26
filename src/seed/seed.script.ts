@@ -28,13 +28,16 @@ async function bootstrap() {
   const result = await seedService.run();
 
   console.log('Seed complete:');
-  console.log(`  Users:    ${result.users}`);
-  console.log(`  Follows:  ${result.follows}`);
-  console.log(`  Posts:    ${result.posts}`);
-  console.log(`  Articles: ${result.articles}`);
-  console.log(`  Likes:    ${result.likes}`);
-  console.log(`  Comments: ${result.comments}`);
-  console.log(`  Shares:   ${result.shares}`);
+  console.log(`  Users:         ${result.users}`);
+  console.log(`  Topics:        ${result.topics}`);
+  console.log(`  Topic follows: ${result.topicFollows}`);
+  console.log(`  Follows:       ${result.follows}`);
+  console.log(`  Posts:         ${result.posts}`);
+  console.log(`  Articles:      ${result.articles}`);
+  console.log(`  Likes:         ${result.likes}`);
+  console.log(`  Comments:      ${result.comments}`);
+  console.log(`  Shares:        ${result.shares}`);
+  console.log('  Password for every user: Password123!');
 
   await app.close();
 }
