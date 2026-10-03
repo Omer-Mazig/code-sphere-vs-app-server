@@ -46,9 +46,9 @@ export class PostsController {
   @ApiStandardErrorResponses()
   getMyDrafts(
     @Query() query: PaginationQueryDto,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.postsService.getMyDrafts(userId, query);
+    return this.postsService.getMyDrafts(currentUserId, query);
   }
 
   @Get(':id')
@@ -62,8 +62,8 @@ export class PostsController {
   @Post()
   @ApiEnvelopeCreatedResponse(PostResponseDto)
   @ApiStandardErrorResponses()
-  create(@CurrentUser() userId: string, @Body() dto: CreatePostDto) {
-    return this.postsService.create(userId, dto);
+  create(@CurrentUser() currentUserId: string, @Body() dto: CreatePostDto) {
+    return this.postsService.create(currentUserId, dto);
   }
 
   @Patch(':id')
@@ -72,17 +72,17 @@ export class PostsController {
   @ApiStandardErrorResponses()
   update(
     @Param('id') id: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Body() dto: UpdatePostDto,
   ) {
-    return this.postsService.update(id, userId, dto);
+    return this.postsService.update(id, currentUserId, dto);
   }
 
   @Delete(':id')
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(PostDeletedResponseDto)
   @ApiStandardErrorResponses()
-  delete(@Param('id') id: string, @CurrentUser() userId: string) {
-    return this.postsService.delete(id, userId);
+  delete(@Param('id') id: string, @CurrentUser() currentUserId: string) {
+    return this.postsService.delete(id, currentUserId);
   }
 }

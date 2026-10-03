@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-} from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Public } from '../common/decorators';
 import {
@@ -50,21 +43,15 @@ export class TopicsController {
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiEnvelopeOkResponse(TopicFollowActionResponseDto)
   @ApiStandardErrorResponses()
-  follow(
-    @CurrentUser() userId: string,
-    @Param('id') topicId: string,
-  ) {
-    return this.topicsService.follow(userId, topicId);
+  follow(@CurrentUser() currentUserId: string, @Param('id') topicId: string) {
+    return this.topicsService.follow(currentUserId, topicId);
   }
 
   @Delete(':id/follow')
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiEnvelopeOkResponse(TopicFollowActionResponseDto)
   @ApiStandardErrorResponses()
-  unfollow(
-    @CurrentUser() userId: string,
-    @Param('id') topicId: string,
-  ) {
-    return this.topicsService.unfollow(userId, topicId);
+  unfollow(@CurrentUser() currentUserId: string, @Param('id') topicId: string) {
+    return this.topicsService.unfollow(currentUserId, topicId);
   }
 }

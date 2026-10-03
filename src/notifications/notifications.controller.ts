@@ -58,11 +58,11 @@ export class NotificationsController {
   @ApiEnvelopePaginatedOkResponse(NotificationResponseDto)
   @ApiStandardErrorResponses()
   getNotifications(
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Query() query: NotificationsQueryDto,
   ) {
     return this.notificationsService.listForUser(
-      userId,
+      currentUserId,
       query.page,
       query.limit,
       {
@@ -75,30 +75,30 @@ export class NotificationsController {
   @Get('unread-count')
   @ApiEnvelopeOkResponse(UnreadCountResponseDto)
   @ApiStandardErrorResponses()
-  getUnreadCount(@CurrentUser() userId: string) {
-    return this.notificationsService.getUnreadCount(userId);
+  getUnreadCount(@CurrentUser() currentUserId: string) {
+    return this.notificationsService.getUnreadCount(currentUserId);
   }
 
   @Patch('mark-all-read')
   @ApiEnvelopeOkResponse(MarkAllReadResponseDto)
   @ApiStandardErrorResponses()
-  markAllAsRead(@CurrentUser() userId: string) {
-    return this.notificationsService.markAllAsRead(userId);
+  markAllAsRead(@CurrentUser() currentUserId: string) {
+    return this.notificationsService.markAllAsRead(currentUserId);
   }
 
   @Patch(':id/read')
   @ApiParam({ name: 'id', type: String })
   @ApiEnvelopeOkResponse(NotificationResponseDto)
   @ApiStandardErrorResponses()
-  markAsRead(@Param('id') id: string, @CurrentUser() userId: string) {
-    return this.notificationsService.markAsRead(id, userId);
+  markAsRead(@Param('id') id: string, @CurrentUser() currentUserId: string) {
+    return this.notificationsService.markAsRead(id, currentUserId);
   }
 
   @Post('stream-token')
   @ApiEnvelopeOkResponse(StreamTokenResponseDto)
   @ApiStandardErrorResponses()
-  createStreamToken(@CurrentUser() userId: string) {
-    return this.notificationsService.createStreamToken(userId);
+  createStreamToken(@CurrentUser() currentUserId: string) {
+    return this.notificationsService.createStreamToken(currentUserId);
   }
 
   @Sse('stream')
@@ -121,7 +121,9 @@ export class NotificationsController {
   })
   @ApiStandardErrorResponses()
   stream(@Query() query: StreamTokenQueryDto): Observable<MessageEvent> {
-    return from(this.notificationsService.validateStreamToken(query.streamToken)).pipe(
+    return from(
+      this.notificationsService.validateStreamToken(query.streamToken),
+    ).pipe(
       switchMap((userId) => {
         const stream = this.notificationsService.createStream(userId);
         const heartbeat$ = interval(25000).pipe(
@@ -134,7 +136,9 @@ export class NotificationsController {
         );
 
         return merge(stream.asObservable(), heartbeat$).pipe(
-          finalize(() => this.notificationsService.detachStream(userId, stream)),
+          finalize(() =>
+            this.notificationsService.detachStream(userId, stream),
+          ),
         );
       }),
     );

@@ -62,17 +62,21 @@ export class ProfilesService {
   async getProfile(targetUserId: string, currentUserId?: string) {
     const user = await this.usersService.findUserOrFail(targetUserId);
 
-    const [{ followersCount, followingCount }, isFollowing, isBlocked, contentCounts] =
-      await Promise.all([
-        this.followsService.getCounts(targetUserId),
-        currentUserId
-          ? this.followsService.isFollowing(currentUserId, targetUserId)
-          : Promise.resolve(false),
-        currentUserId
-          ? this.blocksService.isBlocked(currentUserId, targetUserId)
-          : Promise.resolve(false),
-        this.getContentCounts(targetUserId, { includeUnpublished: false }),
-      ]);
+    const [
+      { followersCount, followingCount },
+      isFollowing,
+      isBlocked,
+      contentCounts,
+    ] = await Promise.all([
+      this.followsService.getCounts(targetUserId),
+      currentUserId
+        ? this.followsService.isFollowing(currentUserId, targetUserId)
+        : Promise.resolve(false),
+      currentUserId
+        ? this.blocksService.isBlocked(currentUserId, targetUserId)
+        : Promise.resolve(false),
+      this.getContentCounts(targetUserId, { includeUnpublished: false }),
+    ]);
 
     return {
       ...this.formatProfile(user, { includeEmail: false }),
@@ -121,16 +125,20 @@ export class ProfilesService {
   private async releaseReplacedMedia(
     user: User,
     updates: ProfileFieldUpdates,
-    userId: string,
+    currentUserId: string,
   ) {
     if ('avatarUrl' in updates) {
-      await this.deleteOwnedMediaAt(user.avatarUrl, updates.avatarUrl, userId);
+      await this.deleteOwnedMediaAt(
+        user.avatarUrl,
+        updates.avatarUrl,
+        currentUserId,
+      );
     }
     if ('coverImageUrl' in updates) {
       await this.deleteOwnedMediaAt(
         user.coverImageUrl,
         updates.coverImageUrl,
-        userId,
+        currentUserId,
       );
     }
   }
@@ -138,7 +146,7 @@ export class ProfilesService {
   private async deleteOwnedMediaAt(
     previousUrl: string | null | undefined,
     nextUrl: string | null | undefined,
-    userId: string,
+    currentUserId: string,
   ) {
     const previousId = parseMediaObjectIdFromUrl(previousUrl);
     const nextId = parseMediaObjectIdFromUrl(nextUrl);
@@ -147,7 +155,7 @@ export class ProfilesService {
     }
 
     try {
-      await this.mediaService.delete(previousId, userId);
+      await this.mediaService.delete(previousId, currentUserId);
     } catch (error) {
       const errorCode =
         error instanceof BusinessException ? error.errorCode : undefined;
@@ -160,7 +168,7 @@ export class ProfilesService {
       this.logger.warn({
         msg: 'Failed to delete replaced profile media',
         previousId,
-        userId,
+        userId: currentUserId,
         error: error instanceof Error ? error.message : String(error),
       });
     }

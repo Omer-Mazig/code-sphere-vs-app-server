@@ -18,7 +18,7 @@ import {
   ChatMessageCreatedEvent,
 } from './events/chat-domain-events';
 
-type ChatSocket = Socket & { data: { userId?: string } };
+type ChatSocket = Socket & { data: { currentUserId?: string } };
 
 @SkipThrottle()
 @WebSocketGateway({
@@ -45,14 +45,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    client.data.userId = payload.sub;
+    client.data.currentUserId = payload.sub;
     void client.join(this.userRoom(payload.sub));
   }
 
   handleDisconnect(client: ChatSocket) {
-    const userId = client.data.userId;
-    if (userId) {
-      this.logger.debug(`Chat socket disconnected for user ${userId}`);
+    const currentUserId = client.data.currentUserId;
+    if (currentUserId) {
+      this.logger.debug(`Chat socket disconnected for user ${currentUserId}`);
     }
   }
 
@@ -61,14 +61,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: { conversationId?: string },
   ) {
-    const userId = client.data.userId;
+    const currentUserId = client.data.currentUserId;
     const conversationId = body?.conversationId;
-    if (!userId || !conversationId) {
+    if (!currentUserId || !conversationId) {
       return { ok: false };
     }
 
     try {
-      await this.chatService.assertCanJoinRoom(conversationId, userId);
+      await this.chatService.assertCanJoinRoom(conversationId, currentUserId);
     } catch {
       return { ok: false };
     }
@@ -82,22 +82,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: ChatSocket,
     @MessageBody() body: { conversationId?: string },
   ) {
-    const userId = client.data.userId;
+    const currentUserId = client.data.currentUserId;
     const conversationId = body?.conversationId;
-    if (!userId || !conversationId) {
+    if (!currentUserId || !conversationId) {
       return;
     }
 
     client.to(conversationId).emit('typing', {
       conversationId,
-      userId,
+      userId: currentUserId,
     });
   }
 
   @OnEvent(ChatDomainEventName.MESSAGE_CREATED)
   handleMessageCreated(event: ChatMessageCreatedEvent) {
     this.server.to(event.conversationId).emit('message', event.message);
-    this.server.to(this.userRoom(event.recipientId)).emit('message', event.message);
+    this.server
+      .to(this.userRoom(event.recipientId))
+      .emit('message', event.message);
   }
 
   private userRoom(userId: string) {

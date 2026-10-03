@@ -40,16 +40,16 @@ export class ChatController {
   @ApiStandardErrorResponses()
   listConversations(
     @Query() query: PaginationQueryDto,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.chatService.listConversations(userId, query);
+    return this.chatService.listConversations(currentUserId, query);
   }
 
   @Get('conversations/unread-count')
   @ApiEnvelopeOkResponse(ChatUnreadCountResponseDto)
   @ApiStandardErrorResponses()
-  getUnreadCount(@CurrentUser() userId: string) {
-    return this.chatService.getUnreadCount(userId);
+  getUnreadCount(@CurrentUser() currentUserId: string) {
+    return this.chatService.getUnreadCount(currentUserId);
   }
 
   @Post('conversations')
@@ -57,10 +57,10 @@ export class ChatController {
   @ApiEnvelopeOkResponse(ConversationResponseDto)
   @ApiStandardErrorResponses()
   createOrGet(
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Body() dto: CreateConversationDto,
   ) {
-    return this.chatService.createOrGetConversation(userId, dto);
+    return this.chatService.createOrGetConversation(currentUserId, dto);
   }
 
   @Get('conversations/:id')
@@ -69,9 +69,9 @@ export class ChatController {
   @ApiStandardErrorResponses()
   getConversation(
     @Param('id') conversationId: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.chatService.getConversation(conversationId, userId);
+    return this.chatService.getConversation(conversationId, currentUserId);
   }
 
   @Get('conversations/:id/messages')
@@ -82,9 +82,9 @@ export class ChatController {
   listMessages(
     @Param('id') conversationId: string,
     @Query() query: PaginationQueryDto,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.chatService.listMessages(conversationId, userId, query);
+    return this.chatService.listMessages(conversationId, currentUserId, query);
   }
 
   @Post('conversations/:id/messages')
@@ -93,10 +93,10 @@ export class ChatController {
   @ApiStandardErrorResponses()
   sendMessage(
     @Param('id') conversationId: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Body() dto: CreateChatMessageDto,
   ) {
-    return this.chatService.sendMessage(conversationId, userId, dto);
+    return this.chatService.sendMessage(conversationId, currentUserId, dto);
   }
 
   @Patch('conversations/:id/read')
@@ -105,9 +105,9 @@ export class ChatController {
   @ApiStandardErrorResponses()
   markRead(
     @Param('id') conversationId: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.chatService.markRead(conversationId, userId);
+    return this.chatService.markRead(conversationId, currentUserId);
   }
 
   @Delete('conversations/:id')
@@ -116,8 +116,8 @@ export class ChatController {
   @ApiStandardErrorResponses()
   deleteConversation(
     @Param('id') conversationId: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
   ) {
-    return this.chatService.deleteConversation(conversationId, userId);
+    return this.chatService.deleteConversation(conversationId, currentUserId);
   }
 }

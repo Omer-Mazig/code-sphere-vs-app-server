@@ -22,15 +22,19 @@ export class LikesController {
   @Post()
   @ApiEnvelopeCreatedResponse(LikeActionResponseDto)
   @ApiStandardErrorResponses()
-  like(@CurrentUser() userId: string, @Body() dto: LikeDto) {
-    return this.likesService.like(userId, dto.targetId, dto.targetType);
+  like(@CurrentUser() currentUserId: string, @Body() dto: LikeDto) {
+    return this.likesService.like(currentUserId, dto.targetId, dto.targetType);
   }
 
   @Delete()
   @ApiEnvelopeOkResponse(LikeActionResponseDto)
   @ApiStandardErrorResponses()
-  unlike(@CurrentUser() userId: string, @Body() dto: LikeDto) {
-    return this.likesService.unlike(userId, dto.targetId, dto.targetType);
+  unlike(@CurrentUser() currentUserId: string, @Body() dto: LikeDto) {
+    return this.likesService.unlike(
+      currentUserId,
+      dto.targetId,
+      dto.targetType,
+    );
   }
 
   @Get('count')
@@ -44,7 +48,11 @@ export class LikesController {
   @Get('status')
   @ApiEnvelopeOkResponse(IsLikedResponseDto)
   @ApiStandardErrorResponses()
-  isLiked(@CurrentUser() userId: string, @Query() query: LikeDto) {
-    return this.likesService.isLiked(userId, query.targetId, query.targetType);
+  isLiked(@CurrentUser() currentUserId: string, @Query() query: LikeDto) {
+    return this.likesService.isLiked(
+      currentUserId,
+      query.targetId,
+      query.targetType,
+    );
   }
 }

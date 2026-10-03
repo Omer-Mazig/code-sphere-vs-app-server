@@ -13,14 +13,14 @@ export class SharesService {
     private readonly interactionTargetValidatorService: InteractionTargetValidatorService,
   ) {}
 
-  async share(userId: string, targetId: string, targetType: TargetType) {
+  async share(currentUserId: string, targetId: string, targetType: TargetType) {
     await this.interactionTargetValidatorService.ensureTargetExists(
       targetId,
       targetType,
     );
 
     const existing = await this.sharesRepository.findOne({
-      where: { userId, targetId, targetType },
+      where: { userId: currentUserId, targetId, targetType },
     });
 
     if (existing) {
@@ -28,7 +28,7 @@ export class SharesService {
     }
 
     const share = this.sharesRepository.create({
-      userId,
+      userId: currentUserId,
       targetId,
       targetType,
     });

@@ -46,7 +46,7 @@ export class PostsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(authorId: string, dto: CreatePostDto) {
+  async create(currentUserId: string, dto: CreatePostDto) {
     const content = dto.content?.trim() ?? '';
     const sharedPostId = dto.sharedPostId;
     const imageMediaIds = dto.imageMediaIds ?? [];
@@ -68,7 +68,7 @@ export class PostsService {
 
     const isPublished = dto.isPublished ?? true;
     const post = this.postsRepository.create({
-      authorId,
+      authorId: currentUserId,
       content,
       sharedPostId: resolvedSharedPostId,
       imageLayout: dto.imageLayout ?? PostImageLayout.GALLERY,
@@ -78,7 +78,7 @@ export class PostsService {
     await this.postsRepository.save(post);
 
     if (imageMediaIds.length > 0) {
-      await this.replacePostImages(post.id, authorId, imageMediaIds);
+      await this.replacePostImages(post.id, currentUserId, imageMediaIds);
     }
 
     if (dto.topicIds !== undefined) {
@@ -87,17 +87,17 @@ export class PostsService {
     }
 
     if (resolvedSharedPostId) {
-      await this.recordShare(authorId, resolvedSharedPostId);
+      await this.recordShare(currentUserId, resolvedSharedPostId);
     }
 
     if (isPublished) {
-      await this.emitMentionNotifications(authorId, content, '', post.id);
+      await this.emitMentionNotifications(currentUserId, content, '', post.id);
     }
 
-    return this.getById(post.id, authorId);
+    return this.getById(post.id, currentUserId);
   }
 
-  async update(postId: string, userId: string, dto: UpdatePostDto) {
+  async update(postId: string, currentUserId: string, dto: UpdatePostDto) {
     const post = await this.postsRepository.findOne({
       where: { id: postId },
     });
@@ -111,10 +111,10 @@ export class PostsService {
       );
     }
 
-    if (post.authorId !== userId) {
+    if (post.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.POST_UPDATE_FORBIDDEN,
-        `User "${userId}" cannot update post "${postId}"`,
+        `User "${currentUserId}" cannot update post "${postId}"`,
         'You can only edit your own posts',
         HttpStatus.FORBIDDEN,
       );
@@ -154,7 +154,7 @@ export class PostsService {
     await this.postsRepository.save(post);
 
     if (dto.imageMediaIds !== undefined) {
-      await this.replacePostImages(post.id, userId, dto.imageMediaIds);
+      await this.replacePostImages(post.id, currentUserId, dto.imageMediaIds);
     }
 
     if (dto.topicIds !== undefined) {
@@ -164,17 +164,17 @@ export class PostsService {
 
     if (nextPublished) {
       await this.emitMentionNotifications(
-        userId,
+        currentUserId,
         post.content,
         wasPublished ? previousContent : '',
         post.id,
       );
     }
 
-    return this.getById(post.id, userId);
+    return this.getById(post.id, currentUserId);
   }
 
-  async delete(postId: string, userId: string) {
+  async delete(postId: string, currentUserId: string) {
     const post = await this.postsRepository.findOne({
       where: { id: postId },
     });
@@ -188,10 +188,10 @@ export class PostsService {
       );
     }
 
-    if (post.authorId !== userId) {
+    if (post.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.POST_DELETE_FORBIDDEN,
-        `User "${userId}" cannot delete post "${postId}"`,
+        `User "${currentUserId}" cannot delete post "${postId}"`,
         'You can only delete your own posts',
         HttpStatus.FORBIDDEN,
       );
@@ -205,7 +205,7 @@ export class PostsService {
     await this.postsRepository.remove(post);
 
     for (const row of imageRows) {
-      await this.deleteOwnedMediaBestEffort(row.mediaId, userId);
+      await this.deleteOwnedMediaBestEffort(row.mediaId, currentUserId);
     }
 
     return { message: 'Post deleted' };
@@ -300,13 +300,13 @@ export class PostsService {
     };
   }
 
-  async getMyDrafts(userId: string, query: PaginationQueryDto) {
+  async getMyDrafts(currentUserId: string, query: PaginationQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const limit = query.limit ?? DEFAULT_PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     const [posts, total] = await this.postsRepository.findAndCount({
-      where: { authorId: userId, isPublished: false },
+      where: { authorId: currentUserId, isPublished: false },
       relations: ['author', 'sharedPost', 'sharedPost.author'],
       order: { updatedAt: 'DESC' },
       skip,
@@ -316,13 +316,12 @@ export class PostsService {
     const items = posts.map((post) => this.formatPost(post));
     const withTopics = await this.enrichWithTopics(items);
     const withImages = await this.enrichWithImages(withTopics);
-    const withLikes = await this.enrichWithLikes(withImages, userId);
-    const withShares = await this.enrichWithShares(withLikes, userId);
-    const withCommentPreview =
-      await this.enrichWithCommentPreview(withShares);
+    const withLikes = await this.enrichWithLikes(withImages, currentUserId);
+    const withShares = await this.enrichWithShares(withLikes, currentUserId);
+    const withCommentPreview = await this.enrichWithCommentPreview(withShares);
     const enrichedItems = await this.enrichWithFollowing(
       withCommentPreview,
-      userId,
+      currentUserId,
     );
 
     return { items: enrichedItems, total, page, limit };
@@ -429,7 +428,7 @@ export class PostsService {
 
   private async replacePostImages(
     postId: string,
-    authorId: string,
+    currentUserId: string,
     mediaIds: string[],
   ) {
     if (mediaIds.length > MAX_POST_IMAGES) {
@@ -441,7 +440,7 @@ export class PostsService {
       );
     }
 
-    await this.mediaService.requireOwned(mediaIds, authorId);
+    await this.mediaService.requireOwned(mediaIds, currentUserId);
 
     const previous = await this.postImagesRepository.find({
       where: { postId },
@@ -460,14 +459,17 @@ export class PostsService {
     const nextIds = new Set(mediaIds);
     for (const row of previous) {
       if (!nextIds.has(row.mediaId)) {
-        await this.deleteOwnedMediaBestEffort(row.mediaId, authorId);
+        await this.deleteOwnedMediaBestEffort(row.mediaId, currentUserId);
       }
     }
   }
 
-  private async deleteOwnedMediaBestEffort(mediaId: string, userId: string) {
+  private async deleteOwnedMediaBestEffort(
+    mediaId: string,
+    currentUserId: string,
+  ) {
     try {
-      await this.mediaService.delete(mediaId, userId);
+      await this.mediaService.delete(mediaId, currentUserId);
     } catch (error) {
       const errorCode =
         error instanceof BusinessException ? error.errorCode : undefined;
@@ -480,7 +482,7 @@ export class PostsService {
       this.logger.warn({
         msg: 'Failed to delete post image media',
         mediaId,
-        userId,
+        userId: currentUserId,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -515,9 +517,9 @@ export class PostsService {
     return current;
   }
 
-  private async recordShare(userId: string, targetId: string) {
+  private async recordShare(currentUserId: string, targetId: string) {
     const existing = await this.sharesRepository.findOne({
-      where: { userId, targetId, targetType: TargetType.POST },
+      where: { userId: currentUserId, targetId, targetType: TargetType.POST },
     });
     if (existing) {
       return;
@@ -525,7 +527,7 @@ export class PostsService {
 
     await this.sharesRepository.save(
       this.sharesRepository.create({
-        userId,
+        userId: currentUserId,
         targetId,
         targetType: TargetType.POST,
       }),

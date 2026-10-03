@@ -37,7 +37,7 @@ export class ArticlesService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(authorId: string, dto: CreateArticleDto) {
+  async create(currentUserId: string, dto: CreateArticleDto) {
     const slug = this.generateSlug(dto.title);
 
     const existingSlug = await this.articlesRepository.findOne({
@@ -54,7 +54,7 @@ export class ArticlesService {
     }
 
     const article = this.articlesRepository.create({
-      authorId,
+      authorId: currentUserId,
       title: dto.title,
       slug,
       content: dto.content,
@@ -70,17 +70,21 @@ export class ArticlesService {
     }
 
     await this.emitMentionNotifications({
-      actorId: authorId,
+      actorId: currentUserId,
       nextContent: flattenRichText(article.content),
       previousContent: '',
       isVisible: article.isPublished,
       articleSlug: article.slug,
     });
 
-    return this.getById(article.id, authorId);
+    return this.getById(article.id, currentUserId);
   }
 
-  async update(articleId: string, userId: string, dto: UpdateArticleDto) {
+  async update(
+    articleId: string,
+    currentUserId: string,
+    dto: UpdateArticleDto,
+  ) {
     const article = await this.articlesRepository.findOne({
       where: { id: articleId },
     });
@@ -94,10 +98,10 @@ export class ArticlesService {
       );
     }
 
-    if (article.authorId !== userId) {
+    if (article.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.ARTICLE_UPDATE_FORBIDDEN,
-        `User "${userId}" cannot update article "${articleId}"`,
+        `User "${currentUserId}" cannot update article "${articleId}"`,
         'You can only edit your own articles',
         HttpStatus.FORBIDDEN,
       );
@@ -140,7 +144,7 @@ export class ArticlesService {
       await this.deleteReplacedCoverBestEffort(
         previousCover,
         article.coverImageUrl,
-        userId,
+        currentUserId,
       );
     }
 
@@ -150,17 +154,17 @@ export class ArticlesService {
     }
 
     await this.emitMentionNotifications({
-      actorId: userId,
+      actorId: currentUserId,
       nextContent,
       previousContent: previousPublished ? previousContent : '',
       isVisible: nextPublished,
       articleSlug: article.slug,
     });
 
-    return this.getById(article.id, userId);
+    return this.getById(article.id, currentUserId);
   }
 
-  async delete(articleId: string, userId: string) {
+  async delete(articleId: string, currentUserId: string) {
     const article = await this.articlesRepository.findOne({
       where: { id: articleId },
     });
@@ -174,10 +178,10 @@ export class ArticlesService {
       );
     }
 
-    if (article.authorId !== userId) {
+    if (article.authorId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.ARTICLE_DELETE_FORBIDDEN,
-        `User "${userId}" cannot delete article "${articleId}"`,
+        `User "${currentUserId}" cannot delete article "${articleId}"`,
         'You can only delete your own articles',
         HttpStatus.FORBIDDEN,
       );
@@ -185,7 +189,7 @@ export class ArticlesService {
 
     const coverUrl = article.coverImageUrl;
     await this.articlesRepository.remove(article);
-    await this.deleteReplacedCoverBestEffort(coverUrl, null, userId);
+    await this.deleteReplacedCoverBestEffort(coverUrl, null, currentUserId);
 
     return { message: 'Article deleted' };
   }
@@ -302,15 +306,15 @@ export class ArticlesService {
     return { items: enrichedItems, total, page, limit };
   }
 
-  async listMyDrafts(userId: string, query: PaginationQueryDto) {
+  async listMyDrafts(currentUserId: string, query: PaginationQueryDto) {
     return this.list(
       {
         page: query.page,
         limit: query.limit,
-        authorId: userId,
+        authorId: currentUserId,
         isPublished: false,
       },
-      userId,
+      currentUserId,
     );
   }
 
@@ -562,7 +566,7 @@ export class ArticlesService {
   private async deleteReplacedCoverBestEffort(
     previousUrl: string | null | undefined,
     nextUrl: string | null | undefined,
-    userId: string,
+    currentUserId: string,
   ) {
     const previousId = parseMediaObjectIdFromUrl(previousUrl);
     const nextId = parseMediaObjectIdFromUrl(nextUrl);
@@ -571,7 +575,7 @@ export class ArticlesService {
     }
 
     try {
-      await this.mediaService.delete(previousId, userId);
+      await this.mediaService.delete(previousId, currentUserId);
     } catch (error) {
       const errorCode =
         error instanceof BusinessException ? error.errorCode : undefined;
@@ -584,7 +588,7 @@ export class ArticlesService {
       this.logger.warn({
         msg: 'Failed to delete replaced article cover media',
         previousId,
-        userId,
+        userId: currentUserId,
         error: error instanceof Error ? error.message : String(error),
       });
     }

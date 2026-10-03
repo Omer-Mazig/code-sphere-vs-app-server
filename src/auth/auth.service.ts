@@ -143,10 +143,7 @@ export class AuthService {
     };
   }
 
-  async register(
-    payload: RegisterDto,
-    metadata: AuthRequestMetadata = {},
-  ) {
+  async register(payload: RegisterDto, metadata: AuthRequestMetadata = {}) {
     const existingEmail = await this.usersRepository.findOne({
       where: { email: payload.email },
     });
@@ -281,10 +278,7 @@ export class AuthService {
     };
   }
 
-  async resendVerification(
-    email: string,
-    metadata: AuthRequestMetadata = {},
-  ) {
+  async resendVerification(email: string, metadata: AuthRequestMetadata = {}) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (!user || user.emailVerified) {
@@ -316,10 +310,7 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(
-    email: string,
-    metadata: AuthRequestMetadata = {},
-  ) {
+  async forgotPassword(email: string, metadata: AuthRequestMetadata = {}) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
     if (!user || !user.isActive) {
@@ -406,26 +397,28 @@ export class AuthService {
       userId: user.id,
     });
 
-    return { message: 'Password updated. You can sign in with your new password.' };
+    return {
+      message: 'Password updated. You can sign in with your new password.',
+    };
   }
 
   async changePassword(
-    userId: string,
+    currentUserId: string,
     payload: ChangePasswordDto,
     metadata: AuthRequestMetadata,
   ) {
     const user = await this.usersRepository.findOne({
-      where: { id: userId },
+      where: { id: currentUserId },
     });
 
     if (!user) {
       this.logAuth(AUTH_AUDIT_EVENT.CHANGE_PASSWORD, 'failure', metadata, {
-        userId,
+        userId: currentUserId,
         reason: 'user_not_found',
       });
       throw new BusinessException(
         ErrorCode.USER_NOT_FOUND,
-        `User with id "${userId}" not found`,
+        `User with id "${currentUserId}" not found`,
         'User not found',
         HttpStatus.NOT_FOUND,
       );
@@ -588,10 +581,7 @@ export class AuthService {
     };
   }
 
-  async logout(
-    refreshToken?: string,
-    metadata: AuthRequestMetadata = {},
-  ) {
+  async logout(refreshToken?: string, metadata: AuthRequestMetadata = {}) {
     if (!refreshToken) {
       this.logAuth(AUTH_AUDIT_EVENT.LOGOUT, 'noop', metadata, {
         reason: 'missing_token',

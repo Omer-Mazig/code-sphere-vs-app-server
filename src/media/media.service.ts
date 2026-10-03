@@ -104,16 +104,16 @@ export class MediaService {
     };
   }
 
-  async delete(id: string, userId: string): Promise<void> {
+  async delete(id: string, currentUserId: string): Promise<void> {
     const row = await this.mediaRepository.findOne({ where: { id } });
     if (!row) {
       throw this.notFound(id);
     }
 
-    if (row.uploaderId !== userId) {
+    if (row.uploaderId !== currentUserId) {
       throw new BusinessException(
         ErrorCode.AUTHORIZATION_ERROR,
-        `User "${userId}" cannot delete media "${id}"`,
+        `User "${currentUserId}" cannot delete media "${id}"`,
         'You can only delete your own uploads',
         HttpStatus.FORBIDDEN,
       );

@@ -48,10 +48,10 @@ export class MediaController {
   @ApiEnvelopeCreatedResponse(MediaObjectResponseDto)
   @ApiStandardErrorResponses()
   upload(
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @UploadedFile(MediaFilePipe) file: Express.Multer.File,
   ) {
-    return this.mediaService.upload(userId, file);
+    return this.mediaService.upload(currentUserId, file);
   }
 
   @Get(':id')

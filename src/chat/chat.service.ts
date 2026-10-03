@@ -31,26 +31,29 @@ export class ChatService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async createOrGetConversation(userId: string, dto: CreateConversationDto) {
-    if (userId === dto.userId) {
+  async createOrGetConversation(
+    currentUserId: string,
+    dto: CreateConversationDto,
+  ) {
+    if (currentUserId === dto.userId) {
       throw new BusinessException(
         ErrorCode.CANNOT_MESSAGE_SELF,
-        `User "${userId}" tried to message themselves`,
+        `User "${currentUserId}" tried to message themselves`,
         'You cannot message yourself',
         HttpStatus.BAD_REQUEST,
       );
     }
 
     const other = await this.usersService.findUserOrFail(dto.userId);
-    await this.assertCanMessage(userId, other.id);
+    await this.assertCanMessage(currentUserId, other.id);
 
-    const [userLowId, userHighId] = this.sortedPair(userId, other.id);
+    const [userLowId, userHighId] = this.sortedPair(currentUserId, other.id);
     const existing = await this.conversationsRepository.findOne({
       where: { userLowId, userHighId },
     });
 
     if (existing) {
-      return this.getConversation(existing.id, userId);
+      return this.getConversation(existing.id, currentUserId);
     }
 
     const conversation = this.conversationsRepository.create({
@@ -62,7 +65,7 @@ export class ChatService {
     await this.participantsRepository.save([
       this.participantsRepository.create({
         conversationId: conversation.id,
-        userId,
+        userId: currentUserId,
         lastReadAt: null,
       }),
       this.participantsRepository.create({
@@ -72,21 +75,18 @@ export class ChatService {
       }),
     ]);
 
-    return this.getConversation(conversation.id, userId);
+    return this.getConversation(conversation.id, currentUserId);
   }
 
-  async listConversations(userId: string, query: PaginationQueryDto) {
+  async listConversations(currentUserId: string, query: PaginationQueryDto) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const [conversations, total] = await this.conversationsRepository
       .createQueryBuilder('conversation')
-      .innerJoin(
-        'conversation.participants',
-        'me',
-        'me.userId = :userId',
-        { userId },
-      )
+      .innerJoin('conversation.participants', 'me', 'me.userId = :userId', {
+        userId: currentUserId,
+      })
       .orderBy('conversation.updatedAt', 'DESC')
       .skip(skip)
       .take(limit)
@@ -94,17 +94,17 @@ export class ChatService {
 
     const items = await this.formatConversations(
       conversations.map((row) => row.id),
-      userId,
+      currentUserId,
     );
 
     return { items, total, page, limit };
   }
 
-  async getConversation(conversationId: string, userId: string) {
-    await this.requireParticipant(conversationId, userId);
+  async getConversation(conversationId: string, currentUserId: string) {
+    await this.requireParticipant(conversationId, currentUserId);
     const [formatted] = await this.formatConversations(
       [conversationId],
-      userId,
+      currentUserId,
     );
     if (!formatted) {
       throw new BusinessException(
@@ -119,10 +119,10 @@ export class ChatService {
 
   async listMessages(
     conversationId: string,
-    userId: string,
+    currentUserId: string,
     query: PaginationQueryDto,
   ) {
-    await this.requireParticipant(conversationId, userId);
+    await this.requireParticipant(conversationId, currentUserId);
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
@@ -143,16 +143,19 @@ export class ChatService {
 
   async sendMessage(
     conversationId: string,
-    userId: string,
+    currentUserId: string,
     dto: CreateChatMessageDto,
   ) {
-    const conversation = await this.requireParticipant(conversationId, userId);
-    const recipientId = this.otherUserId(conversation, userId);
-    await this.assertCanMessage(userId, recipientId);
+    const conversation = await this.requireParticipant(
+      conversationId,
+      currentUserId,
+    );
+    const recipientId = this.otherUserId(conversation, currentUserId);
+    await this.assertCanMessage(currentUserId, recipientId);
 
     const message = this.messagesRepository.create({
       conversationId,
-      senderId: userId,
+      senderId: currentUserId,
       body: dto.body,
     });
     await this.messagesRepository.save(message);
@@ -161,7 +164,7 @@ export class ChatService {
     await this.conversationsRepository.save(conversation);
 
     await this.participantsRepository.update(
-      { conversationId, userId },
+      { conversationId, userId: currentUserId },
       { lastReadAt: message.createdAt },
     );
 
@@ -176,28 +179,28 @@ export class ChatService {
     return formatted;
   }
 
-  async markRead(conversationId: string, userId: string) {
-    await this.requireParticipant(conversationId, userId);
+  async markRead(conversationId: string, currentUserId: string) {
+    await this.requireParticipant(conversationId, currentUserId);
     await this.participantsRepository.update(
-      { conversationId, userId },
+      { conversationId, userId: currentUserId },
       { lastReadAt: new Date() },
     );
     return { message: 'Conversation marked as read' };
   }
 
-  async deleteConversation(conversationId: string, userId: string) {
-    await this.requireParticipant(conversationId, userId);
+  async deleteConversation(conversationId: string, currentUserId: string) {
+    await this.requireParticipant(conversationId, currentUserId);
     await this.conversationsRepository.delete({ id: conversationId });
     return { message: 'Conversation deleted' };
   }
 
-  async getUnreadCount(userId: string) {
-    const count = await this.unreadConversationCount(userId);
+  async getUnreadCount(currentUserId: string) {
+    const count = await this.unreadConversationCount(currentUserId);
     return { count };
   }
 
-  async assertCanJoinRoom(conversationId: string, userId: string) {
-    await this.requireParticipant(conversationId, userId);
+  async assertCanJoinRoom(conversationId: string, currentUserId: string) {
+    await this.requireParticipant(conversationId, currentUserId);
   }
 
   private async assertCanMessage(senderId: string, recipientId: string) {
@@ -215,7 +218,10 @@ export class ChatService {
     }
   }
 
-  private async requireParticipant(conversationId: string, userId: string) {
+  private async requireParticipant(
+    conversationId: string,
+    currentUserId: string,
+  ) {
     const conversation = await this.conversationsRepository.findOne({
       where: { id: conversationId },
     });
@@ -230,11 +236,12 @@ export class ChatService {
     }
 
     const isParticipant =
-      conversation.userLowId === userId || conversation.userHighId === userId;
+      conversation.userLowId === currentUserId ||
+      conversation.userHighId === currentUserId;
     if (!isParticipant) {
       throw new BusinessException(
         ErrorCode.CONVERSATION_FORBIDDEN,
-        `User "${userId}" is not in conversation "${conversationId}"`,
+        `User "${currentUserId}" is not in conversation "${conversationId}"`,
         'Conversation not found',
         HttpStatus.NOT_FOUND,
       );
@@ -243,8 +250,8 @@ export class ChatService {
     return conversation;
   }
 
-  private otherUserId(conversation: Conversation, userId: string) {
-    return conversation.userLowId === userId
+  private otherUserId(conversation: Conversation, currentUserId: string) {
+    return conversation.userLowId === currentUserId
       ? conversation.userHighId
       : conversation.userLowId;
   }
@@ -263,7 +270,7 @@ export class ChatService {
     };
   }
 
-  private async formatConversations(ids: string[], userId: string) {
+  private async formatConversations(ids: string[], currentUserId: string) {
     if (ids.length === 0) {
       return [];
     }
@@ -301,7 +308,7 @@ export class ChatService {
           AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
         GROUP BY m."conversationId"
         `,
-        [userId, ids],
+        [currentUserId, ids],
       );
     const unreadByConversation = new Map(
       unreadRows.map((row) => [row.conversationId, Number(row.count)]),
@@ -313,11 +320,13 @@ export class ChatService {
       .map((conversation) => {
         const mine = participants.find(
           (row) =>
-            row.conversationId === conversation.id && row.userId === userId,
+            row.conversationId === conversation.id &&
+            row.userId === currentUserId,
         );
         const other = participants.find(
           (row) =>
-            row.conversationId === conversation.id && row.userId !== userId,
+            row.conversationId === conversation.id &&
+            row.userId !== currentUserId,
         );
         const last = lastByConversation.get(conversation.id) ?? null;
         const otherUser = other?.user;
@@ -325,7 +334,7 @@ export class ChatService {
         return {
           id: conversation.id,
           otherUser: {
-            id: otherUser?.id ?? this.otherUserId(conversation, userId),
+            id: otherUser?.id ?? this.otherUserId(conversation, currentUserId),
             username: otherUser?.username ?? 'unknown',
             displayName: otherUser?.displayName ?? null,
             avatarUrl: otherUser?.avatarUrl ?? null,
@@ -342,7 +351,7 @@ export class ChatService {
       });
   }
 
-  private async unreadConversationCount(userId: string) {
+  private async unreadConversationCount(currentUserId: string) {
     const rows: Array<{ count: string }> = await this.messagesRepository.query(
       `
       SELECT COUNT(DISTINCT m."conversationId")::int AS count
@@ -352,7 +361,7 @@ export class ChatService {
       WHERE m."senderId" <> $1
         AND (p."lastReadAt" IS NULL OR m."createdAt" > p."lastReadAt")
       `,
-      [userId],
+      [currentUserId],
     );
     return Number(rows[0]?.count ?? 0);
   }

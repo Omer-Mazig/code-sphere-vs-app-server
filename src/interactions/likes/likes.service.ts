@@ -17,27 +17,27 @@ export class LikesService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async like(userId: string, targetId: string, targetType: TargetType) {
+  async like(currentUserId: string, targetId: string, targetType: TargetType) {
     await this.interactionTargetValidatorService.ensureTargetExists(
       targetId,
       targetType,
     );
 
     const existing = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
+      where: { userId: currentUserId, targetId, targetType },
     });
 
     if (existing) {
       throw new BusinessException(
         ErrorCode.ALREADY_LIKED,
-        `User "${userId}" already liked ${targetType} "${targetId}"`,
+        `User "${currentUserId}" already liked ${targetType} "${targetId}"`,
         'You have already liked this',
         HttpStatus.CONFLICT,
       );
     }
 
     const like = this.likesRepository.create({
-      userId,
+      userId: currentUserId,
       targetId,
       targetType,
     });
@@ -50,7 +50,7 @@ export class LikesService {
           NotificationDomainEventName.POST_LIKED,
           {
             postId: targetId,
-            likerId: userId,
+            likerId: currentUserId,
           },
         );
         break;
@@ -59,7 +59,7 @@ export class LikesService {
           NotificationDomainEventName.ARTICLE_LIKED,
           {
             articleId: targetId,
-            likerId: userId,
+            likerId: currentUserId,
           },
         );
         break;
@@ -68,15 +68,19 @@ export class LikesService {
     return { message: 'Liked successfully' };
   }
 
-  async unlike(userId: string, targetId: string, targetType: TargetType) {
+  async unlike(
+    currentUserId: string,
+    targetId: string,
+    targetType: TargetType,
+  ) {
     const existing = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
+      where: { userId: currentUserId, targetId, targetType },
     });
 
     if (!existing) {
       throw new BusinessException(
         ErrorCode.NOT_LIKED,
-        `User "${userId}" has not liked ${targetType} "${targetId}"`,
+        `User "${currentUserId}" has not liked ${targetType} "${targetId}"`,
         'You have not liked this',
         HttpStatus.BAD_REQUEST,
       );
@@ -95,9 +99,13 @@ export class LikesService {
     return { count };
   }
 
-  async isLiked(userId: string, targetId: string, targetType: TargetType) {
+  async isLiked(
+    currentUserId: string,
+    targetId: string,
+    targetType: TargetType,
+  ) {
     const like = await this.likesRepository.findOne({
-      where: { userId, targetId, targetType },
+      where: { userId: currentUserId, targetId, targetType },
     });
 
     return { isLiked: !!like };

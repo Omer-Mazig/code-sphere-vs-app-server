@@ -17,8 +17,12 @@ export class SharesController {
   @Post()
   @ApiEnvelopeCreatedResponse(ShareActionResponseDto)
   @ApiStandardErrorResponses()
-  share(@CurrentUser() userId: string, @Body() dto: LikeDto) {
-    return this.sharesService.share(userId, dto.targetId, dto.targetType);
+  share(@CurrentUser() currentUserId: string, @Body() dto: LikeDto) {
+    return this.sharesService.share(
+      currentUserId,
+      dto.targetId,
+      dto.targetType,
+    );
   }
 
   @Get('count')

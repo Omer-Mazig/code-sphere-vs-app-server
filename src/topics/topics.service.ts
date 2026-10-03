@@ -36,7 +36,9 @@ export class TopicsService {
       topics.map((topic) => topic.id),
     );
 
-    return topics.map((topic) => this.formatTopic(topic, followed.has(topic.id)));
+    return topics.map((topic) =>
+      this.formatTopic(topic, followed.has(topic.id)),
+    );
   }
 
   async getBySlug(slug: string, currentUserId?: string) {
@@ -50,8 +52,8 @@ export class TopicsService {
       );
     }
 
-    const [followed, postCount, articleCount, followerCount] = await Promise.all(
-      [
+    const [followed, postCount, articleCount, followerCount] =
+      await Promise.all([
         this.followedSet(currentUserId, [topic.id]),
         this.postTopicsRepository.count({ where: { topicId: topic.id } }),
         this.articleTopicsRepository
@@ -61,8 +63,7 @@ export class TopicsService {
           .andWhere('article.isPublished = :isPublished', { isPublished: true })
           .getCount(),
         this.followedTopicsRepository.count({ where: { topicId: topic.id } }),
-      ],
-    );
+      ]);
 
     return {
       ...this.formatTopic(topic, followed.has(topic.id)),
@@ -72,36 +73,39 @@ export class TopicsService {
     };
   }
 
-  async follow(userId: string, topicId: string) {
+  async follow(currentUserId: string, topicId: string) {
     await this.findTopicOrFail(topicId);
 
     const existing = await this.followedTopicsRepository.findOne({
-      where: { userId, topicId },
+      where: { userId: currentUserId, topicId },
     });
     if (existing) {
       throw new BusinessException(
         ErrorCode.TOPIC_ALREADY_FOLLOWED,
-        `User "${userId}" already follows topic "${topicId}"`,
+        `User "${currentUserId}" already follows topic "${topicId}"`,
         'You are already following this topic',
         HttpStatus.CONFLICT,
       );
     }
 
     await this.followedTopicsRepository.save(
-      this.followedTopicsRepository.create({ userId, topicId }),
+      this.followedTopicsRepository.create({
+        userId: currentUserId,
+        topicId,
+      }),
     );
 
     return { message: 'Followed successfully' };
   }
 
-  async unfollow(userId: string, topicId: string) {
+  async unfollow(currentUserId: string, topicId: string) {
     const existing = await this.followedTopicsRepository.findOne({
-      where: { userId, topicId },
+      where: { userId: currentUserId, topicId },
     });
     if (!existing) {
       throw new BusinessException(
         ErrorCode.TOPIC_NOT_FOLLOWED,
-        `User "${userId}" does not follow topic "${topicId}"`,
+        `User "${currentUserId}" does not follow topic "${topicId}"`,
         'You are not following this topic',
         HttpStatus.BAD_REQUEST,
       );
@@ -169,7 +173,9 @@ export class TopicsService {
     );
   }
 
-  async topicsByPostIds(postIds: string[]): Promise<Map<string, TopicPreview[]>> {
+  async topicsByPostIds(
+    postIds: string[],
+  ): Promise<Map<string, TopicPreview[]>> {
     if (postIds.length === 0) {
       return new Map();
     }
@@ -232,9 +238,7 @@ export class TopicsService {
     rows: T[],
     ownerId: (row: T) => string,
   ): Map<string, TopicPreview[]> {
-    const map = new Map<string, TopicPreview[]>(
-      ownerIds.map((id) => [id, []]),
-    );
+    const map = new Map<string, TopicPreview[]>(ownerIds.map((id) => [id, []]));
     for (const row of rows) {
       const list = map.get(ownerId(row));
       if (!list) {

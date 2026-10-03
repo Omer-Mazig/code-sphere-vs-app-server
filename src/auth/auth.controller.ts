@@ -139,10 +139,7 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiEnvelopeOkResponse(ResetPasswordResponseDto)
   @ApiStandardErrorResponses()
-  async resetPassword(
-    @Body() payload: ResetPasswordDto,
-    @Req() req: Request,
-  ) {
+  async resetPassword(@Body() payload: ResetPasswordDto, @Req() req: Request) {
     return this.authService.resetPassword(
       payload.token,
       payload.password,
@@ -156,13 +153,13 @@ export class AuthController {
   @ApiEnvelopeOkResponse(AuthSessionResponseDto)
   @ApiStandardErrorResponses()
   async changePassword(
-    @CurrentUser() userId: string,
+    @CurrentUser() currentUserId: string,
     @Body() payload: ChangePasswordDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.changePassword(
-      userId,
+      currentUserId,
       payload,
       this.requestMetadata(req),
     );
