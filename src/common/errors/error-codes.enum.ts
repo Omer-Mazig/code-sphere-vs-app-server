@@ -47,6 +47,8 @@ export enum ErrorCode {
   // Interactions
   ALREADY_LIKED = 'ALREADY_LIKED',
   NOT_LIKED = 'NOT_LIKED',
+  ALREADY_SAVED = 'ALREADY_SAVED',
+  NOT_SAVED = 'NOT_SAVED',
 
   // Notifications
   NOTIFICATION_NOT_FOUND = 'NOTIFICATION_NOT_FOUND',

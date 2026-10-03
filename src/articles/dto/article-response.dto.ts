@@ -55,6 +55,9 @@ export class ArticleResponseDto {
   @ApiProperty()
   isLiked!: boolean;
 
+  @ApiProperty()
+  isSaved!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 

@@ -34,6 +34,7 @@ import { MediaModule } from './media/media.module';
 import { TopicsModule } from './topics/topics.module';
 import { HealthModule } from './health/health.module';
 import { ChatModule } from './chat/chat.module';
+import { SavedModule } from './saved/saved.module';
 import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
 
 @Module({
@@ -98,6 +99,7 @@ import { TokenCleanupScheduler } from './auth/token-cleanup.scheduler';
     MediaModule,
     TopicsModule,
     ChatModule,
+    SavedModule,
     SeedModule,
     HealthModule,
   ],

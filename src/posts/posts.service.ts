@@ -21,6 +21,8 @@ import { TopicsService } from '../topics/topics.service';
 import { MediaService } from '../media/media.service';
 import { PostTopic } from '../topics/entities/post-topic.entity';
 import { MAX_POST_IMAGES, PostImageLayout } from './posts.constants';
+import { SavedService } from '../saved/saved.service';
+import { SavedTargetType } from '../saved/entities/saved-item.entity';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -44,6 +46,7 @@ export class PostsService {
     private readonly topicsService: TopicsService,
     private readonly mediaService: MediaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly savedService: SavedService,
   ) {}
 
   async create(currentUserId: string, dto: CreatePostDto) {
@@ -578,7 +581,7 @@ export class PostsService {
   private async enrichWithLikes<T extends { id: string }>(
     items: T[],
     currentUserId?: string,
-  ): Promise<(T & { likesCount: number; isLiked: boolean })[]> {
+  ): Promise<(T & { likesCount: number; isLiked: boolean; isSaved: boolean })[]> {
     if (items.length === 0) return [];
 
     const ids = items.map((i) => i.id);
@@ -609,10 +612,17 @@ export class PostsService {
       likedSet = new Set(userLikes.map((l) => l.targetId));
     }
 
+    const savedSet = await this.savedService.savedIdSet(
+      currentUserId,
+      SavedTargetType.POST,
+      ids,
+    );
+
     return items.map((item) => ({
       ...item,
       likesCount: countMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
+      isSaved: savedSet.has(item.id),
     }));
   }
 

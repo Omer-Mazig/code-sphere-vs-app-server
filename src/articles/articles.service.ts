@@ -19,6 +19,8 @@ import { TopicsService } from '../topics/topics.service';
 import { ArticleTopic } from '../topics/entities/article-topic.entity';
 import { MediaService } from '../media/media.service';
 import { parseMediaObjectIdFromUrl } from '../media/media-object-url';
+import { SavedService } from '../saved/saved.service';
+import { SavedTargetType } from '../saved/entities/saved-item.entity';
 
 @Injectable()
 export class ArticlesService {
@@ -35,6 +37,7 @@ export class ArticlesService {
     private readonly topicsService: TopicsService,
     private readonly mediaService: MediaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly savedService: SavedService,
   ) {}
 
   async create(currentUserId: string, dto: CreateArticleDto) {
@@ -457,7 +460,7 @@ export class ArticlesService {
   private async enrichWithLikes<T extends { id: string }>(
     items: T[],
     currentUserId?: string,
-  ): Promise<(T & { likesCount: number; isLiked: boolean })[]> {
+  ): Promise<(T & { likesCount: number; isLiked: boolean; isSaved: boolean })[]> {
     if (items.length === 0) return [];
 
     const ids = items.map((i) => i.id);
@@ -488,10 +491,17 @@ export class ArticlesService {
       likedSet = new Set(userLikes.map((l) => l.targetId));
     }
 
+    const savedSet = await this.savedService.savedIdSet(
+      currentUserId,
+      SavedTargetType.ARTICLE,
+      ids,
+    );
+
     return items.map((item) => ({
       ...item,
       likesCount: countMap.get(item.id) ?? 0,
       isLiked: likedSet.has(item.id),
+      isSaved: savedSet.has(item.id),
     }));
   }
 

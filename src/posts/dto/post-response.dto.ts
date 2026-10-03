@@ -88,6 +88,9 @@ export class PostResponseDto {
   isLiked!: boolean;
 
   @ApiProperty()
+  isSaved!: boolean;
+
+  @ApiProperty()
   commentsCount!: number;
 
   @ApiProperty()

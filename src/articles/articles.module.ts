@@ -8,6 +8,7 @@ import { Comment } from '../interactions/entities/comment.entity';
 import { UsersModule } from '../users/users.module';
 import { TopicsModule } from '../topics/topics.module';
 import { MediaModule } from '../media/media.module';
+import { SavedModule } from '../saved/saved.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MediaModule } from '../media/media.module';
     UsersModule,
     TopicsModule,
     MediaModule,
+    SavedModule,
   ],
   controllers: [ArticlesController],
   providers: [ArticlesService],
