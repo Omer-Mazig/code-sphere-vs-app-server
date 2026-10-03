@@ -21,6 +21,9 @@ export class Post {
   @Column({ type: 'text' })
   content: string;
 
+  @Column({ default: true })
+  isPublished: boolean;
+
   @Column({ type: 'uuid', nullable: true })
   sharedPostId: string | null;
 

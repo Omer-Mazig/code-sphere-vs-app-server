@@ -13,6 +13,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
+import { PaginationQueryDto } from '../common/dto';
 import {
   PostDeletedResponseDto,
   PostResponseDto,
@@ -37,6 +38,17 @@ export class PostsController {
   @ApiStandardErrorResponses()
   getFeed(@Query() query: PostQueryDto, @CurrentUser() currentUserId: string) {
     return this.postsService.getFeed(query, currentUserId);
+  }
+
+  @Get('me/drafts')
+  @Paginated()
+  @ApiEnvelopePaginatedOkResponse(PostResponseDto)
+  @ApiStandardErrorResponses()
+  getMyDrafts(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() userId: string,
+  ) {
+    return this.postsService.getMyDrafts(userId, query);
   }
 
   @Get(':id')

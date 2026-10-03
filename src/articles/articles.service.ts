@@ -302,6 +302,18 @@ export class ArticlesService {
     return { items: enrichedItems, total, page, limit };
   }
 
+  async listMyDrafts(userId: string, query: PaginationQueryDto) {
+    return this.list(
+      {
+        page: query.page,
+        limit: query.limit,
+        authorId: userId,
+        isPublished: false,
+      },
+      userId,
+    );
+  }
+
   async listPublishedAuthors() {
     const rows = await this.articlesRepository
       .createQueryBuilder('article')

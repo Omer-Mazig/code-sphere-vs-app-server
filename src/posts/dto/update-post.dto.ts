@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsOptional,
   IsString,
@@ -46,4 +47,11 @@ export class UpdatePostDto {
   @ArrayMaxSize(MAX_TOPICS_PER_ITEM)
   @IsUUID('4', { each: true })
   topicIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Set true to publish a draft. Omit to leave the current status.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
 }

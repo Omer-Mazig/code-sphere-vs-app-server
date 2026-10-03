@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsOptional,
   IsString,
@@ -55,4 +56,11 @@ export class CreatePostDto {
   @ArrayMaxSize(MAX_TOPICS_PER_ITEM)
   @IsUUID('4', { each: true })
   topicIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'False stores an owner-only draft. Omitted posts are published.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
 }

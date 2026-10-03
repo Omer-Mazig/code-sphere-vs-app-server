@@ -66,6 +66,17 @@ export class ArticlesController {
     return this.articlesService.listPublishedAuthors();
   }
 
+  @Get('me/drafts')
+  @Paginated()
+  @ApiEnvelopePaginatedOkResponse(ArticleResponseDto)
+  @ApiStandardErrorResponses()
+  listMyDrafts(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() userId: string,
+  ) {
+    return this.articlesService.listMyDrafts(userId, query);
+  }
+
   @Get(':slug')
   @Public()
   @ApiParam({ name: 'slug', type: String })

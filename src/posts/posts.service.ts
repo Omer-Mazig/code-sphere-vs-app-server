@@ -10,6 +10,7 @@ import { Share } from '../interactions/entities/share.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
+import { PaginationQueryDto } from '../common/dto';
 import { BusinessException } from '../common/errors/business.exception';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { newlyMentionedUsernames } from '../common/utils';
@@ -65,11 +66,13 @@ export class PostsService {
       resolvedSharedPostId = original.id;
     }
 
+    const isPublished = dto.isPublished ?? true;
     const post = this.postsRepository.create({
       authorId,
       content,
       sharedPostId: resolvedSharedPostId,
       imageLayout: dto.imageLayout ?? PostImageLayout.GALLERY,
+      isPublished,
     });
 
     await this.postsRepository.save(post);
@@ -87,7 +90,9 @@ export class PostsService {
       await this.recordShare(authorId, resolvedSharedPostId);
     }
 
-    await this.emitMentionNotifications(authorId, content, '', post.id);
+    if (isPublished) {
+      await this.emitMentionNotifications(authorId, content, '', post.id);
+    }
 
     return this.getById(post.id, authorId);
   }
@@ -116,6 +121,7 @@ export class PostsService {
     }
 
     const previousContent = post.content;
+    const wasPublished = post.isPublished;
     const nextImageIds =
       dto.imageMediaIds ??
       (
@@ -125,7 +131,9 @@ export class PostsService {
         })
       ).map((row) => row.mediaId);
 
+    const nextPublished = dto.isPublished ?? post.isPublished;
     if (
+      nextPublished &&
       !dto.content.trim() &&
       !post.sharedPostId &&
       nextImageIds.length === 0
@@ -139,6 +147,7 @@ export class PostsService {
     }
 
     post.content = dto.content;
+    post.isPublished = nextPublished;
     if (dto.imageLayout !== undefined) {
       post.imageLayout = dto.imageLayout;
     }
@@ -153,12 +162,14 @@ export class PostsService {
       await this.topicsService.replacePostTopics(post.id, topicIds);
     }
 
-    await this.emitMentionNotifications(
-      userId,
-      post.content,
-      previousContent,
-      post.id,
-    );
+    if (nextPublished) {
+      await this.emitMentionNotifications(
+        userId,
+        post.content,
+        wasPublished ? previousContent : '',
+        post.id,
+      );
+    }
 
     return this.getById(post.id, userId);
   }
@@ -206,7 +217,11 @@ export class PostsService {
       relations: ['author', 'sharedPost', 'sharedPost.author'],
     });
 
-    if (!post || !post.author?.isActive) {
+    if (
+      !post ||
+      !post.author?.isActive ||
+      (!post.isPublished && post.authorId !== currentUserId)
+    ) {
       throw new BusinessException(
         ErrorCode.POST_NOT_FOUND,
         `Post with id "${postId}" not found`,
@@ -262,6 +277,7 @@ export class PostsService {
     }
 
     qb.andWhere('author.isActive = :isActive', { isActive: true });
+    qb.andWhere('post.isPublished = :isPublished', { isPublished: true });
 
     const [posts, total] = await qb.getManyAndCount();
 
@@ -284,11 +300,40 @@ export class PostsService {
     };
   }
 
+  async getMyDrafts(userId: string, query: PaginationQueryDto) {
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await this.postsRepository.findAndCount({
+      where: { authorId: userId, isPublished: false },
+      relations: ['author', 'sharedPost', 'sharedPost.author'],
+      order: { updatedAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    const items = posts.map((post) => this.formatPost(post));
+    const withTopics = await this.enrichWithTopics(items);
+    const withImages = await this.enrichWithImages(withTopics);
+    const withLikes = await this.enrichWithLikes(withImages, userId);
+    const withShares = await this.enrichWithShares(withLikes, userId);
+    const withCommentPreview =
+      await this.enrichWithCommentPreview(withShares);
+    const enrichedItems = await this.enrichWithFollowing(
+      withCommentPreview,
+      userId,
+    );
+
+    return { items: enrichedItems, total, page, limit };
+  }
+
   private formatPost(post: Post) {
     const shared = post.sharedPost;
     return {
       id: post.id,
       content: post.content,
+      isPublished: post.isPublished,
       imageLayout: post.imageLayout ?? PostImageLayout.GALLERY,
       author: post.author
         ? {

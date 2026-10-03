@@ -66,6 +66,9 @@ export class PostResponseDto {
   @ApiProperty()
   content!: string;
 
+  @ApiProperty()
+  isPublished!: boolean;
+
   @ApiProperty({ type: PostAuthorResponseDto, nullable: true })
   author!: PostAuthorResponseDto | null;
 
